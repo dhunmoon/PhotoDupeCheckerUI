@@ -1,0 +1,110 @@
+name: Release
+
+# Push a tag like `v0.1.0` (matching the version in Cargo.toml) to build every
+# platform and publish a GitHub Release. "Run workflow" from the Actions tab builds
+# the same artifacts without publishing (download them from the run summary).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+
+  linux:
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # zig lets cargo-zigbuild link against glibc 2.28, so one binary runs on
+      # Debian 10+, Ubuntu 18.10+, RHEL/Rocky/Alma 8+, Fedora 29+, Arch, etc.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild,cargo-deb,cargo-generate-rpm
+      - run: ./packaging/package-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    needs: check-version
+    strategy:
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    # Apple Silicon runner; the Intel build is cross-compiled with the same Xcode SDK.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: ./packaging/package-macos.sh ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: check-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - run: ./packaging/package-windows.ps1
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: packaging/release-notes.md
+          generate_release_notes: true
+          # Tags like v0.2.0-beta.1 are marked as pre-releases.
+          prerelease: ${{ contains(github.ref_name, '-') }}

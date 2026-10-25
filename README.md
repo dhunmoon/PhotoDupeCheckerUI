@@ -35,7 +35,31 @@ finds **the same photo saved in a different format, size or quality**.
   - A confirmation dialog appears before anything is changed.
 - Export the results to CSV, and see unreadable files and action results in the log.
 
-## Running
+## Download & install
+
+Get the latest build from the
+[Releases page](https://github.com/dhunmoon/PhotoDupeCheckerUI/releases/latest):
+
+| System | File |
+|---|---|
+| Windows 10/11 (64-bit) | `…-windows-x86_64-setup.exe` (installer) or `…-windows-x86_64.zip` (portable) |
+| macOS, Apple Silicon | `…-macos-apple-silicon.dmg` |
+| macOS, Intel | `…-macos-intel.dmg` |
+| Ubuntu / Debian / Mint | `…_amd64.deb` — `sudo apt install ./dupe-finder_*.deb` |
+| Fedora / RHEL / openSUSE | `…x86_64.rpm` — `sudo dnf install ./dupe-finder-*.rpm` |
+| Any other Linux | `…-linux-x86_64.AppImage` (`chmod +x`, then run) or the `.tar.gz` |
+
+The Linux builds need glibc 2.28 or newer: Debian 10+, Ubuntu 18.10+, RHEL/Rocky 8+,
+Fedora 29+, or any current Arch/openSUSE.
+
+The builds are not code-signed yet, so the first launch shows a warning:
+
+- **Windows:** in *"Windows protected your PC"*, click **More info → Run anyway**.
+- **macOS:** drag the app to Applications and open it. If macOS refuses, open **System
+  Settings → Privacy & Security** and click **Open Anyway**. You can also run
+  `xattr -dr com.apple.quarantine "/Applications/Dupe Finder.app"`.
+
+## Running from source
 
 ```sh
 cargo run --release
@@ -118,6 +142,46 @@ cargo clippy --all-targets
 cargo fmt
 ```
 
+## Releasing
+
+Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)).
+Every push and pull request also runs fmt, clippy and the tests on Linux, Windows and
+macOS ([`ci.yml`](.github/workflows/ci.yml)).
+
+1. Bump `version` in `Cargo.toml`, then run `cargo build` so `Cargo.lock` is updated.
+   Commit both files.
+2. Tag the commit and push the tag:
+   ```sh
+   git tag v0.1.0
+   git push origin main v0.1.0
+   ```
+3. The workflow checks that the tag matches `Cargo.toml`, builds every platform, and
+   publishes a GitHub Release. The release includes the files below, a `SHA256SUMS.txt`,
+   the install notes from [`packaging/release-notes.md`](packaging/release-notes.md),
+   and auto-generated change notes. Tags with a hyphen, such as `v0.2.0-beta.1`, become
+   pre-releases.
+
+To test the builds without publishing, open the **Actions** tab and choose **Release →
+Run workflow**. The files are attached to that run.
+
+| Platform | Built on | Output |
+|---|---|---|
+| Linux x86_64 | ubuntu-latest, `cargo zigbuild` against glibc 2.28 | `.tar.gz`, `.AppImage`, `.deb`, `.rpm` |
+| macOS Apple Silicon / Intel | macos-latest (Intel is cross-compiled), min macOS 11 | `.dmg` with `Dupe Finder.app`, ad-hoc signed |
+| Windows x86_64 | windows-latest (MSVC), icon embedded by `build.rs` | Inno Setup installer + portable `.zip` |
+
+The packaging scripts in [`packaging/`](packaging) also run locally. For example,
+`packaging/package-linux.sh` needs `cargo-zigbuild` with zig, `cargo-deb` and
+`cargo-generate-rpm`. The deb/rpm metadata is in `Cargo.toml` under
+`[package.metadata.*]`. The platform icons (`packaging/windows/app.ico`,
+`packaging/macos/AppIcon.icns`, `packaging/linux/dupe-finder.png`) are generated from
+`assets/logo/app-icon.png`. Regenerate them if the logo changes.
+
+**Code signing (later):** a signed build removes the first-launch warnings. macOS needs
+an Apple Developer ID ($99/year) plus notarization. Windows needs a code-signing
+certificate, or Azure Trusted Signing. Both can be added to `release.yml` as extra steps
+that use repository secrets.
+
 ## Design & assets
 
 The UI uses a small design system in [`src/ui/theme.rs`](src/ui/theme.rs): one palette per
@@ -166,3 +230,7 @@ Replace `assets/logo/app-icon.png` and rebuild (`cargo build --release`):
   modified time would make repeat scans almost instant.
 - **No undo** inside the app. Use *Move to Trash* or *Move to folder* if you may want
   to undo later.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled fonts keep their own licenses (see `assets/fonts/`).

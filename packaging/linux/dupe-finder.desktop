@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Dupe Finder
+GenericName=Duplicate File Finder
+Comment=Find and remove duplicate files and visually similar photos
+Exec=dupe_finder %F
+Icon=dupe-finder
+Terminal=false
+Categories=Utility;FileTools;Graphics;
+Keywords=duplicate;dedupe;photos;cleanup;
+StartupWMClass=dupe-finder

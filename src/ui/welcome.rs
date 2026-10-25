@@ -1,27 +1,26 @@
-//! What the main area shows before there are results: a guide, scan progress, or
-//! "no duplicates found".
+//! What the main area shows before there are results: a getting-started guide, scan
+//! progress, or "no duplicates found".
 
-use eframe::egui::{self, Align, Layout, RichText, Vec2};
+use eframe::egui::{self, Align, Align2, Layout, Margin, RichText, Sense, Vec2};
 
 use super::DupeApp;
-use super::theme::{self, ACCENT, KEEP};
+use super::fonts::{medium, semibold};
+use super::icons;
+use super::theme::{self, Kind, Palette, Size, space};
 
 pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
     ui.with_layout(Layout::top_down(Align::Center), |ui| {
         let h = ui.available_height();
-        ui.add_space((h * 0.18).max(20.0));
+        ui.add_space((h * 0.14).max(space::XL));
         ui.set_max_width(560.0);
         if let Some(job) = &app.job {
             progress(ui, job.progress());
         } else if let Some(s) = &app.last_scan {
-            ui.label(RichText::new("🎉").size(48.0));
-            ui.label(
-                RichText::new("No duplicates found")
-                    .size(24.0)
-                    .strong()
-                    .color(KEEP),
-            );
-            ui.add_space(6.0);
+            let p = Palette::of(ui);
+            icon_tile(ui, icons::SEAL_CHECK, p.keep);
+            ui.add_space(space::LG);
+            ui.label(semibold("No duplicates found").size(22.0).color(p.text));
+            ui.add_space(space::XS);
             ui.label(
                 RichText::new(format!(
                     "Checked {} files in {:.1}s using “{}”.",
@@ -29,23 +28,23 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
                     s.seconds,
                     app.cfg.method.label()
                 ))
-                .weak(),
+                .color(p.muted),
             );
             if s.errors > 0 {
                 ui.label(
                     RichText::new(format!(
-                        "{} files could not be read — see the log.",
+                        "{} files could not be read. See the activity log.",
                         s.errors
                     ))
-                    .weak(),
+                    .color(p.muted),
                 );
             }
-            ui.add_space(6.0);
+            ui.add_space(space::SM);
             ui.label(
                 RichText::new(
-                    "Try another method (e.g. Similar-looking images) or add more folders.",
+                    "Try another method, such as Similar-looking images, or add more folders.",
                 )
-                .weak(),
+                .color(p.muted),
             );
         } else {
             guide(app, ui);
@@ -53,11 +52,27 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
     });
 }
 
-fn progress(ui: &mut egui::Ui, p: &crate::scan::Progress) {
-    let (stage, done, total) = p.snapshot();
-    ui.add(egui::Spinner::new().size(48.0));
-    ui.add_space(10.0);
-    ui.label(RichText::new(stage).size(20.0).strong());
+/// Large rounded square with a centred icon.
+fn icon_tile(ui: &mut egui::Ui, icon: &str, color: egui::Color32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(64.0), Sense::hover());
+    ui.painter()
+        .rect_filled(rect, 16.0, color.gamma_multiply(0.14));
+    ui.painter().text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(32.0),
+        color,
+    );
+}
+
+fn progress(ui: &mut egui::Ui, prog: &crate::scan::Progress) {
+    let p = Palette::of(ui);
+    let (stage, done, total) = prog.snapshot();
+    ui.add(egui::Spinner::new().size(40.0).color(p.accent));
+    ui.add_space(space::LG);
+    ui.label(semibold(stage).size(18.0).color(p.text));
+    ui.add_space(space::SM);
     let frac = if total > 0 {
         done as f32 / total as f32
     } else {
@@ -70,82 +85,133 @@ fn progress(ui: &mut egui::Ui, p: &crate::scan::Progress) {
     };
     ui.add(
         egui::ProgressBar::new(frac)
-            .text(text)
             .animate(total == 0)
-            .desired_width(420.0),
+            .desired_width(380.0)
+            .desired_height(8.0)
+            .fill(p.accent)
+            .corner_radius(4),
     );
-    ui.add_space(8.0);
-    if ui.button("⏹ Cancel").clicked() {
-        p.request_cancel();
+    ui.label(RichText::new(text).size(12.0).color(p.muted));
+    ui.add_space(space::MD);
+    if ui
+        .add(theme::button(
+            ui,
+            Kind::Secondary,
+            Size::Md,
+            format!("{}  Cancel", icons::STOP),
+        ))
+        .clicked()
+    {
+        prog.request_cancel();
     }
 }
 
 fn guide(app: &mut DupeApp, ui: &mut egui::Ui) {
-    ui.label(RichText::new("🔍").size(52.0).color(ACCENT));
+    let p = Palette::of(ui);
+    if let Some(t) = &app.logo {
+        ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::splat(72.0)));
+    }
+    ui.add_space(space::LG);
     ui.label(
-        RichText::new("Find and clean up duplicate files")
-            .size(26.0)
-            .strong(),
+        semibold("Find and clean up duplicate files")
+            .size(24.0)
+            .color(p.text),
     );
+    ui.add_space(space::XS);
     ui.label(
-        RichText::new("Photos, videos, music, documents — nothing is changed until you confirm.")
-            .weak(),
+        RichText::new("Photos, videos, music and documents. Nothing changes until you confirm.")
+            .size(14.0)
+            .color(p.muted),
     );
-    ui.add_space(18.0);
+    ui.add_space(space::XL);
 
-    theme::card(ui).show(ui, |ui| {
-        ui.set_width(460.0);
-        for (n, title, text) in [
-            (1, "Choose folders", "Add the folders to check. Use Source → Target to clean a backup against your originals."),
-            (2, "Pick a method", "“Identical content” for exact copies, “Similar-looking images” for resized or re-saved photos."),
-            (3, "Review & clean up", "Smart select picks which copy to keep. Marked files can go to the Trash, a folder, or become links."),
-        ] {
-            ui.horizontal_top(|ui| {
-                theme::step_title(ui, n, "");
-                ui.vertical(|ui| {
-                    ui.label(RichText::new(title).strong());
-                    ui.add(egui::Label::new(RichText::new(text).small().weak()).wrap());
+    let steps = [
+        (
+            icons::FOLDERS,
+            "Choose folders",
+            "Add the folders to check. Use Source → Target to clean a backup against your originals.",
+        ),
+        (
+            icons::FINGERPRINT,
+            "Pick how to match",
+            "Identical content finds exact copies. Similar-looking images finds resized or re-saved photos.",
+        ),
+        (
+            icons::BROOM,
+            "Review and clean up",
+            "Smart select picks the copy to keep. Send the rest to the Trash, a folder, or replace them with links.",
+        ),
+    ];
+    theme::card(ui)
+        .inner_margin(Margin::same(20))
+        .show(ui, |ui| {
+            ui.set_width(480.0);
+            for (i, (icon, title, text)) in steps.into_iter().enumerate() {
+                if i > 0 {
+                    ui.add_space(space::LG);
+                }
+                ui.horizontal_top(|ui| {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(36.0), Sense::hover());
+                    ui.painter().rect_filled(rect, 9.0, p.accent_soft);
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        icon,
+                        egui::FontId::proportional(18.0),
+                        p.accent,
+                    );
+                    ui.add_space(space::XS);
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.label(medium(title).color(p.text));
+                        ui.add(
+                            egui::Label::new(RichText::new(text).size(12.5).color(p.muted)).wrap(),
+                        );
+                    });
                 });
-            });
-            ui.add_space(4.0);
-        }
-    });
+            }
+        });
 
-    ui.add_space(18.0);
+    ui.add_space(space::XL);
     if app.cfg.folders.is_empty() {
-        if ui
-            .add(
-                theme::primary_button("➕  Add a folder to start").min_size(Vec2::new(240.0, 42.0)),
-            )
-            .clicked()
+        let b = theme::button(
+            ui,
+            Kind::Primary,
+            Size::Lg,
+            format!("{}  Add a folder", icons::PLUS),
+        )
+        .min_size(Vec2::new(220.0, 40.0));
+        if ui.add(b).clicked()
             && let Some(dirs) = rfd::FileDialog::new().pick_folders()
         {
             for d in dirs {
                 app.add_folder(d);
             }
         }
+        ui.add_space(space::XS);
         ui.label(
-            RichText::new("or drag & drop folders onto this window")
-                .small()
-                .weak(),
+            RichText::new("or drag and drop folders onto this window")
+                .size(12.0)
+                .color(p.muted),
         );
     } else {
-        let can = app.cfg.validate().is_ok();
-        if ui
-            .add_enabled(
-                can,
-                theme::primary_button("🔍  Scan for duplicates").min_size(Vec2::new(240.0, 42.0)),
-            )
-            .clicked()
-        {
+        let b = theme::button(
+            ui,
+            Kind::Primary,
+            Size::Lg,
+            format!("{}  Scan for duplicates", icons::MAGNIFYING_GLASS),
+        )
+        .min_size(Vec2::new(220.0, 40.0));
+        if ui.add_enabled(app.cfg.validate().is_ok(), b).clicked() {
             let ctx = ui.ctx().clone();
             app.start_scan(&ctx);
         }
         let n = app.cfg.folders.len();
+        ui.add_space(space::XS);
         ui.label(
             RichText::new(format!("{n} folder{} ready", if n == 1 { "" } else { "s" }))
-                .small()
-                .weak(),
+                .size(12.0)
+                .color(p.muted),
         );
     }
 }

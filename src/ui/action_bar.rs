@@ -1,16 +1,20 @@
-//! Bottom bar: smart selection on the left, what to do with marked files on the right.
+//! Bottom bar: smart selection and mark summary on the left, actions on the right.
 
-use eframe::egui::{self, Align, Layout, Margin, RichText};
+use eframe::egui::{self, Align, Layout, Margin, RichText, containers::menu::MenuButton};
 
-use super::theme::{self, REMOVE, WARN};
+use super::fonts::semibold;
+use super::icons;
+use super::theme::{self, Kind, Palette, Size, space};
 use super::{DupeApp, PendingAction};
 use crate::actions::ActionKind;
 use crate::model::human_size;
 use crate::selection::{self, KeepRule};
 
 pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
+    let p = Palette::of(ui);
     egui::Panel::bottom("action_bar")
-        .frame(egui::Frame::side_top_panel(ui.style()).inner_margin(Margin::symmetric(14, 8)))
+        .show_separator_line(true)
+        .frame(theme::panel_frame(ui, p.surface, Margin::symmetric(16, 10)))
         .show(ui, |ui| {
             ui.add_enabled_ui(!app.busy(), |ui| {
                 ui.horizontal(|ui| {
@@ -21,27 +25,44 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
                 });
             });
             if !app.status.is_empty() {
-                ui.label(RichText::new(&app.status).small().weak());
+                ui.add_space(2.0);
+                ui.label(RichText::new(&app.status).size(11.5).color(p.muted));
             }
         });
 }
 
 fn selection_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
+    let p = Palette::of(ui);
     let before = app.results.marked.len();
-    ui.menu_button(RichText::new("✨ Smart select ▾").strong(), |ui| {
-        smart_select_menu(app, ui)
-    })
-    .response
-    .on_hover_text("Automatically decide which copy to keep in every group");
+    let smart = theme::button(
+        ui,
+        Kind::Secondary,
+        Size::Md,
+        format!("{}  Smart select  {}", icons::MAGIC_WAND, icons::CARET_DOWN),
+    );
+    MenuButton::from_button(smart)
+        .ui(ui, |ui| smart_select_menu(app, ui))
+        .0
+        .on_hover_text("Automatically decide which copy to keep in every group");
     if ui
-        .button("Invert")
+        .add(theme::button(
+            ui,
+            Kind::Ghost,
+            Size::Md,
+            format!("{}  Invert", icons::SELECTION_INVERSE),
+        ))
         .on_hover_text("Swap kept and marked files")
         .clicked()
     {
         selection::invert(&app.results.groups, &mut app.results.marked);
     }
     if ui
-        .button("Clear")
+        .add(theme::button(
+            ui,
+            Kind::Ghost,
+            Size::Md,
+            format!("{}  Clear", icons::ERASER),
+        ))
         .on_hover_text("Unmark everything")
         .clicked()
     {
@@ -51,43 +72,41 @@ fn selection_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         app.results.mark_dirty();
     }
 
-    ui.separator();
+    ui.add_space(space::XS);
+    theme::vsep(ui);
+    ui.add_space(space::XS);
     let s = app.results.stats();
     if s.files == 0 {
-        ui.label(RichText::new("Nothing marked yet").weak())
+        ui.label(RichText::new("No files marked").color(p.muted))
             .on_hover_text(
-                "Use Smart select, or click a file's KEEP badge to mark it for removal.",
+                "Use Smart select, or click a file's Keep badge to mark it for removal.",
             );
     } else {
         ui.label(
-            RichText::new(format!(
-                "{} file{} marked · {}",
+            semibold(format!(
+                "{} file{} marked",
                 s.files,
-                if s.files == 1 { "" } else { "s" },
-                human_size(s.bytes)
+                if s.files == 1 { "" } else { "s" }
             ))
-            .color(REMOVE)
-            .strong(),
+            .color(p.remove),
         );
+        ui.label(RichText::new(format!("· {}", human_size(s.bytes))).color(p.muted));
     }
     if s.fully_marked_groups > 0 {
-        theme::badge(ui, format!("⚠ {} group(s) fully marked", s.fully_marked_groups), WARN).on_hover_text(
-            "Every copy is marked in these groups. They are skipped by default so you never lose all copies.",
-        );
+        theme::badge(ui, format!("{}  {} group(s) fully marked", icons::WARNING, s.fully_marked_groups), p.warn)
+            .on_hover_text("Every copy is marked in these groups. They are skipped by default so you never lose all copies.");
     }
 }
 
 fn smart_select_menu(app: &mut DupeApp, ui: &mut egui::Ui) {
     ui.set_min_width(300.0);
-    ui.label(
-        RichText::new("In every group, keep one copy and mark the rest:")
-            .small()
-            .weak(),
-    );
+    theme::menu_caption(ui, "Keep one copy per group, mark the rest");
     let svt = app.results.is_source_vs_target();
     for r in KeepRule::ALL {
         let enabled = !r.needs_source_folders() || svt;
-        let resp = ui.add_enabled(enabled, egui::Button::new(r.label()).frame(false));
+        let resp = ui
+            .add_enabled_ui(enabled, |ui| theme::menu_item(ui, icons::CHECK, r.label()))
+            .inner;
         let resp = if enabled {
             resp
         } else {
@@ -99,59 +118,48 @@ fn smart_select_menu(app: &mut DupeApp, ui: &mut egui::Ui) {
         }
     }
     ui.separator();
-    ui.label(RichText::new("By folder").small().weak());
-    if ui
-        .add(egui::Button::new("Keep the copies inside a folder…").frame(false))
-        .clicked()
-    {
+    theme::menu_caption(ui, "By folder");
+    if theme::menu_item(ui, icons::FOLDER, "Keep the copies inside a folder…").clicked() {
         ui.close();
         if let Some(d) = rfd::FileDialog::new().pick_folder() {
             selection::keep_in_folder(&app.results.groups, &mut app.results.marked, &d);
         }
     }
-    if ui
-        .add(egui::Button::new("Mark everything inside a folder…").frame(false))
-        .clicked()
-    {
+    if theme::menu_item(ui, icons::FOLDER_OPEN, "Mark everything inside a folder…").clicked() {
         ui.close();
         if let Some(d) = rfd::FileDialog::new().pick_folder() {
             selection::select_in_folder(&app.results.groups, &mut app.results.marked, &d);
         }
     }
     ui.separator();
-    ui.label(
-        RichText::new("By pattern (adds to the current marks)")
-            .small()
-            .weak(),
-    );
-    ui.horizontal(|ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut app.ext_input)
-                .hint_text("extensions: png, bmp")
-                .desired_width(170.0),
-        );
-        if ui.button("Mark").clicked() {
-            selection::select_by_extension(
-                &app.results.groups,
-                &mut app.results.marked,
-                &app.ext_input,
+    theme::menu_caption(ui, "By pattern (adds to current marks)");
+    for (input, hint, by_ext) in [
+        (&mut app.ext_input, "Extensions, e.g. png, bmp", true),
+        (&mut app.text_input, "Path contains, e.g. backup", false),
+    ] {
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(input)
+                    .hint_text(hint)
+                    .desired_width(200.0)
+                    .margin(Margin::symmetric(8, 5)),
             );
-        }
-    });
-    ui.horizontal(|ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut app.text_input)
-                .hint_text("path contains: backup")
-                .desired_width(170.0),
-        );
-        if ui.button("Mark").clicked() {
-            selection::select_by_text(
-                &app.results.groups,
-                &mut app.results.marked,
-                &app.text_input,
-            );
-        }
-    });
+            if ui
+                .add(theme::button(ui, Kind::Secondary, Size::Sm, "Mark"))
+                .clicked()
+            {
+                if by_ext {
+                    selection::select_by_extension(
+                        &app.results.groups,
+                        &mut app.results.marked,
+                        input,
+                    );
+                } else {
+                    selection::select_by_text(&app.results.groups, &mut app.results.marked, input);
+                }
+            }
+        });
+    }
 }
 
 fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
@@ -163,8 +171,12 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         kind,
     };
 
-    let trash =
-        theme::danger_button(format!("🗑  Move {n} to Trash")).min_size(egui::vec2(0.0, 32.0));
+    let trash = theme::button(
+        ui,
+        Kind::Danger,
+        Size::Md,
+        format!("{}  Move to Trash", icons::TRASH),
+    );
     if ui
         .add_enabled(enabled, trash)
         .on_hover_text("Recoverable from the system Trash / Recycle Bin")
@@ -174,14 +186,17 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         app.pending = Some(ask(ActionKind::Trash));
     }
 
-    ui.menu_button("More actions ▾", |ui| {
-        ui.set_min_width(260.0);
+    let more = theme::button(
+        ui,
+        Kind::Secondary,
+        Size::Md,
+        format!("More actions  {}", icons::CARET_DOWN),
+    );
+    MenuButton::from_button(more).ui(ui, |ui| {
+        ui.set_min_width(290.0);
         ui.add_enabled_ui(enabled, |ui| {
-            if ui
-                .button("📂  Move marked to a folder…")
-                .on_hover_text("Move into a quarantine folder of your choice")
-                .clicked()
-            {
+            theme::menu_caption(ui, "Relocate");
+            if theme::menu_item(ui, icons::FOLDER_OPEN, "Move marked to a folder…").clicked() {
                 ui.close();
                 if let Some(dest) = rfd::FileDialog::new().pick_folder() {
                     app.pending = Some(ask(ActionKind::MoveTo {
@@ -190,11 +205,7 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
                     }));
                 }
             }
-            if ui
-                .button("📋  Copy marked to a folder…")
-                .on_hover_text("Originals stay in place")
-                .clicked()
-            {
+            if theme::menu_item(ui, icons::COPY, "Copy marked to a folder…").clicked() {
                 ui.close();
                 if let Some(dest) = rfd::FileDialog::new().pick_folder() {
                     let mut p = ask(ActionKind::CopyTo {
@@ -205,30 +216,22 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
                     app.pending = Some(p);
                 }
             }
-            ui.checkbox(
-                &mut app.keep_structure,
-                "Recreate folder structure when moving/copying",
-            );
+            ui.checkbox(&mut app.keep_structure, "Recreate folder structure");
             ui.separator();
-            if ui
-                .button("🔗  Replace with hard links")
-                .on_hover_text("Frees space but every path keeps working (same drive only)")
+            theme::menu_caption(ui, "Save space, keep paths working");
+            if theme::menu_item(ui, icons::LINK, "Replace with hard links")
+                .on_hover_text("Same drive only")
                 .clicked()
             {
                 ui.close();
                 app.pending = Some(ask(ActionKind::HardLink));
             }
-            if ui
-                .button("↪  Replace with shortcuts (symlinks)")
-                .on_hover_text("Each marked file becomes a link to the kept copy")
-                .clicked()
-            {
+            if theme::menu_item(ui, icons::LINK_SIMPLE, "Replace with symbolic links").clicked() {
                 ui.close();
                 app.pending = Some(ask(ActionKind::SymLink));
             }
             ui.separator();
-            if ui
-                .button(RichText::new("❌  Delete permanently…").color(REMOVE))
+            if theme::menu_item(ui, icons::X_CIRCLE, "Delete permanently…")
                 .on_hover_text("Skips the Trash. Cannot be undone.")
                 .clicked()
             {
@@ -236,14 +239,14 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
                 app.pending = Some(ask(ActionKind::Delete));
             }
             ui.separator();
-            if ui.button("📄  Copy marked paths to clipboard").clicked() {
+            if theme::menu_item(ui, icons::CLIPBOARD_TEXT, "Copy marked paths").clicked() {
                 ui.ctx()
                     .copy_text(app.results.marked_paths_sorted().join("\n"));
                 app.status = format!("Copied {n} paths to the clipboard");
                 ui.close();
             }
         });
-        if ui.button("💾  Export report (CSV)…").clicked() {
+        if theme::menu_item(ui, icons::FILE_CSV, "Export report (CSV)…").clicked() {
             ui.close();
             export_csv(app);
         }

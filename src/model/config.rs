@@ -72,16 +72,6 @@ impl Method {
         }
     }
 
-    pub fn icon(self) -> &'static str {
-        match self {
-            Method::FileName => "🔤",
-            Method::NameAndSize => "🔠",
-            Method::Size => "📏",
-            Method::Content => "🧬",
-            Method::SimilarImage => "🖼",
-        }
-    }
-
     pub fn description(self) -> &'static str {
         match self {
             Method::FileName => "Fastest. Matches by file name only; contents may differ.",

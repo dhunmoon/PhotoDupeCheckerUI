@@ -1,9 +1,12 @@
 //! Drawing helpers shared by the result views.
 
-use eframe::egui::{self, Align2, Color32, FontId, Rect, Vec2};
+use eframe::egui::{self, Align2, Color32, FontId, Rect, RichText, Vec2};
 
 use super::Cmd;
-use crate::model::{DupGroup, FileEntry, is_decodable_image};
+use crate::model::{DupGroup, FileEntry, human_size, is_decodable_image};
+use crate::ui::fonts::{medium, semibold};
+use crate::ui::icons;
+use crate::ui::theme::{self, Palette};
 use crate::ui::thumbs::{Thumb, ThumbCache};
 
 /// Double-click to open, right-click for the context menu.
@@ -18,27 +21,26 @@ pub(super) fn file_interactions(
         cmds.push(Cmd::Open(f.path.clone()));
     }
     r.context_menu(|ui| {
-        if ui
-            .button("✔ Keep only this one (mark the rest of the group)")
-            .clicked()
-        {
+        ui.set_min_width(260.0);
+        if theme::menu_item(ui, icons::CHECK_CIRCLE, "Keep only this one").clicked() {
             cmds.push(Cmd::KeepOnly(gi, f.path.clone()));
             ui.close();
         }
-        if ui.button("Open").clicked() {
+        ui.separator();
+        if theme::menu_item(ui, icons::ARROW_SQUARE_OUT, "Open").clicked() {
             cmds.push(Cmd::Open(f.path.clone()));
             ui.close();
         }
-        if ui.button("Show in folder").clicked() {
+        if theme::menu_item(ui, icons::FOLDER_OPEN, "Show in folder").clicked() {
             cmds.push(Cmd::OpenFolder(f.path.clone()));
             ui.close();
         }
         ui.separator();
-        if ui.button("Copy path").clicked() {
+        if theme::menu_item(ui, icons::COPY, "Copy path").clicked() {
             cmds.push(Cmd::CopyText(f.path.display().to_string()));
             ui.close();
         }
-        if ui.button("Copy all paths in group").clicked() {
+        if theme::menu_item(ui, icons::CLIPBOARD_TEXT, "Copy all paths in group").clicked() {
             let s: Vec<String> = g
                 .files
                 .iter()
@@ -50,7 +52,24 @@ pub(super) fn file_interactions(
     });
 }
 
-/// Paints an image thumbnail (or a big file-type icon) centred in `rect`.
+/// Group heading used by the grid and side-by-side views.
+pub(super) fn group_title(ui: &mut egui::Ui, g: &DupGroup, marked: usize) {
+    let p = Palette::of(ui);
+    ui.label(
+        RichText::new(icons::for_kind(g.main_kind()))
+            .size(16.0)
+            .color(p.muted),
+    );
+    ui.label(semibold(format!("Group {}", g.id)).color(p.text));
+    ui.label(RichText::new(format!("· {} copies · {}", g.files.len(), g.label)).color(p.muted));
+    theme::badge(ui, format!("{} freed", human_size(g.wasted())), p.accent)
+        .on_hover_text("Space freed by keeping only one copy");
+    if marked > 0 {
+        theme::badge(ui, format!("{marked} marked"), p.remove);
+    }
+}
+
+/// Paints an image thumbnail (or a file-type icon) centred in `rect`.
 pub(super) fn paint_preview(
     ui: &mut egui::Ui,
     rect: Rect,
@@ -58,8 +77,8 @@ pub(super) fn paint_preview(
     thumbs: &mut ThumbCache,
     load_px: u32,
 ) {
-    ui.painter()
-        .rect_filled(rect, 6.0, ui.visuals().extreme_bg_color);
+    let p = Palette::of(ui);
+    ui.painter().rect_filled(rect, 6.0, p.bg);
     if is_decodable_image(&f.path) {
         match thumbs.get(&f.path, load_px) {
             Thumb::Ready(t) => {
@@ -70,33 +89,62 @@ pub(super) fn paint_preview(
             }
             Thumb::Loading => {
                 egui::Spinner::new()
-                    .paint_at(ui, Rect::from_center_size(rect.center(), Vec2::splat(24.0)));
+                    .color(p.muted)
+                    .paint_at(ui, Rect::from_center_size(rect.center(), Vec2::splat(22.0)));
             }
-            Thumb::Failed => center_text(ui, rect, "⚠ no preview", 13.0),
+            Thumb::Failed => center_icon(ui, rect, icons::WARNING, 24.0, p.muted),
         }
     } else {
-        center_text(ui, rect, f.kind.icon(), rect.height() * 0.35);
+        center_icon(
+            ui,
+            rect,
+            icons::for_kind(f.kind),
+            rect.height() * 0.3,
+            p.muted,
+        );
     }
 }
 
-fn center_text(ui: &egui::Ui, rect: Rect, text: &str, size: f32) {
+fn center_icon(ui: &egui::Ui, rect: Rect, icon: &str, size: f32, color: Color32) {
     ui.painter().text(
         rect.center(),
         Align2::CENTER_CENTER,
-        text,
+        icon,
         FontId::proportional(size),
-        ui.visuals().weak_text_color(),
+        color,
     );
 }
 
-/// Painter-only version of a pill badge (for custom-drawn cards).
-pub(super) fn paint_pill(ui: &egui::Ui, anchor: egui::Pos2, text: &str, color: Color32) {
-    let galley =
-        ui.painter()
-            .layout_no_wrap(text.to_string(), FontId::proportional(11.0), Color32::WHITE);
-    let rect = Rect::from_min_size(anchor, galley.size() + Vec2::new(12.0, 4.0));
+/// Painter-only keep/remove pill for custom-drawn cards.
+pub(super) fn paint_status(ui: &egui::Ui, anchor: egui::Pos2, marked: bool) {
+    let p = Palette::of(ui);
+    let (icon, label, color) = if marked {
+        (icons::X_CIRCLE, "Remove", p.remove)
+    } else {
+        (icons::CHECK_CIRCLE, "Keep", p.keep)
+    };
+    let mut job = egui::text::LayoutJob::default();
+    crate::ui::fonts::icon_fill(icon)
+        .size(12.0)
+        .color(Color32::WHITE)
+        .append_to(
+            &mut job,
+            ui.style(),
+            egui::FontSelection::Default,
+            egui::Align::Center,
+        );
+    medium(format!(" {label}"))
+        .size(11.5)
+        .color(Color32::WHITE)
+        .append_to(
+            &mut job,
+            ui.style(),
+            egui::FontSelection::Default,
+            egui::Align::Center,
+        );
+    let galley = ui.painter().layout_job(job);
+    let rect = Rect::from_min_size(anchor, galley.size() + Vec2::new(14.0, 6.0));
+    ui.painter().rect_filled(rect, 10.0, color);
     ui.painter()
-        .rect_filled(rect, 9.0, color.gamma_multiply(0.92));
-    ui.painter()
-        .galley(rect.min + Vec2::new(6.0, 2.0), galley, Color32::WHITE);
+        .galley(rect.min + Vec2::new(7.0, 3.0), galley, Color32::WHITE);
 }

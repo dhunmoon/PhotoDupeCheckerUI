@@ -92,7 +92,10 @@ src/
   report.rs          CSV export
   ui/
     mod.rs           DupeApp + frame layout
-    theme.rs         colours, style, reusable widgets
+    theme.rs         design system: palette, spacing, reusable widgets
+    fonts.rs         bundled Inter + Phosphor font setup
+    icons.rs         the icon set (Phosphor codepoints)
+    logo.rs          app logo (window icon + header)
     results.rs       result/filter/mark state (no egui, unit tested)
     jobs.rs          background scan/action threads
     sidebar.rs       setup steps + scan button
@@ -110,10 +113,37 @@ To browse the API docs, run `cargo doc --no-deps --open`.
 ## Development
 
 ```sh
-cargo test                     # 82 unit + end-to-end tests
+cargo test                     # 85 unit + end-to-end tests
 cargo clippy --all-targets
 cargo fmt
 ```
+
+## Design & assets
+
+The UI uses a small design system in [`src/ui/theme.rs`](src/ui/theme.rs): one palette per
+light/dark mode, a 4/8/12/16/24 px spacing scale, three control heights (26/32/40 px),
+and shared widgets (buttons, segmented control, badges, chips, menu items). Build new UI
+from these helpers so everything stays consistent.
+
+| Asset | Location | Notes |
+|-------|----------|-------|
+| Text font | `assets/fonts/Inter-*.ttf` | Inter 4.1, Regular / Medium / SemiBold (OFL). See `assets/fonts/README.md`. |
+| Icons | `assets/fonts/Phosphor*.ttf`, [`src/ui/icons.rs`](src/ui/icons.rs) | Phosphor Icons (MIT). Add new icons as constants in `icons.rs`. |
+| Logo | `assets/logo/app-icon.png` | Window/taskbar icon and in-app logo. Embedded at build time. |
+
+### Logo specification
+
+Replace `assets/logo/app-icon.png` and rebuild (`cargo build --release`):
+
+- **1024 × 1024 px PNG**, RGBA with a transparent background, sRGB.
+- Keep the artwork inside the central **~824 × 824 px** (≈10 % padding on each side).
+  This matches macOS/Windows icon grids and keeps it from looking cramped in the taskbar.
+- It must still read clearly at **16, 24 and 32 px**. Prefer a bold, simple mark over
+  fine detail or text.
+- The header shows it at 28 pt (112 px on 4× displays) on both light and dark
+  backgrounds, so avoid artwork that disappears on either one.
+- Please also send the **SVG source** if you have one, so platform icon files (`.ico`,
+  `.icns`) can be generated from it later.
 
 ## Not done yet / ideas
 

@@ -14,7 +14,10 @@
 
 mod action_bar;
 mod dialogs;
+mod fonts;
+mod icons;
 mod jobs;
+mod logo;
 pub mod results;
 mod sidebar;
 mod theme;
@@ -37,12 +40,17 @@ use thumbs::ThumbCache;
 
 /// Opens the main window. Blocks until it is closed.
 pub fn run(launch: LaunchArgs) -> eframe::Result {
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("Dupe Finder")
+        .with_app_id("dupe-finder")
+        .with_inner_size([1400.0, 900.0])
+        .with_min_inner_size([1000.0, 640.0])
+        .with_drag_and_drop(true);
+    if let Some(icon) = logo::window_icon() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("Dupe Finder")
-            .with_inner_size([1400.0, 900.0])
-            .with_min_inner_size([1000.0, 640.0])
-            .with_drag_and_drop(true),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -93,6 +101,8 @@ pub struct DupeApp {
     pub(crate) keep_structure: bool,
     pub(crate) ext_input: String,
     pub(crate) text_input: String,
+    pub(crate) show_filters: bool,
+    pub(crate) logo: Option<egui::TextureHandle>,
 }
 
 impl DupeApp {
@@ -116,6 +126,8 @@ impl DupeApp {
             keep_structure: true,
             ext_input: String::new(),
             text_input: String::new(),
+            show_filters: false,
+            logo: logo::texture(&cc.egui_ctx),
         };
         for f in launch.folders {
             app.cfg.add_folder(f);
@@ -269,8 +281,13 @@ impl eframe::App for DupeApp {
         sidebar::show(self, ui);
 
         let mut cmds = Vec::new();
+        let bg = theme::Palette::of(ui).bg;
         egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(ui.style()).inner_margin(egui::Margin::same(12)))
+            .frame(
+                egui::Frame::new()
+                    .fill(bg)
+                    .inner_margin(egui::Margin::same(20)),
+            )
             .show(ui, |ui| {
                 if self.results.is_empty() {
                     welcome::show(self, ui);

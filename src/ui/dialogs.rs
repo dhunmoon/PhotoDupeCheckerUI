@@ -1,9 +1,11 @@
-//! Modal confirmation before touching files, and the log window.
+//! Modal confirmation before touching files, and the activity log window.
 
-use eframe::egui::{self, Align, Layout, RichText};
+use eframe::egui::{self, Align, Layout, Margin, RichText};
 
 use super::DupeApp;
-use super::theme::{self, REMOVE, WARN};
+use super::fonts::semibold;
+use super::icons;
+use super::theme::{self, Kind, Palette, Size, space};
 use crate::actions::ActionKind;
 use crate::model::human_size;
 
@@ -21,53 +23,70 @@ pub(crate) fn confirm_action(app: &mut DupeApp, ctx: &egui::Context) {
     let mut decision: Option<bool> = None;
 
     egui::Modal::new(egui::Id::unique("confirm_action")).show(ctx, |ui| {
-        ui.set_width(500.0);
-        let icon = match kind {
-            ActionKind::Trash => "🗑",
-            ActionKind::Delete => "❌",
-            ActionKind::MoveTo { .. } => "📂",
-            ActionKind::CopyTo { .. } => "📋",
-            ActionKind::HardLink | ActionKind::SymLink => "🔗",
+        let p = Palette::of(ui);
+        ui.set_width(460.0);
+        let (icon, color) = match kind {
+            ActionKind::Trash => (icons::TRASH, p.remove),
+            ActionKind::Delete => (icons::X_CIRCLE, p.danger),
+            ActionKind::MoveTo { .. } => (icons::FOLDER_OPEN, p.accent),
+            ActionKind::CopyTo { .. } => (icons::COPY, p.accent),
+            ActionKind::HardLink | ActionKind::SymLink => (icons::LINK, p.accent),
         };
-        ui.label(
-            RichText::new(format!("{icon}  {}", kind.label()))
-                .size(18.0)
-                .strong(),
-        );
-        ui.add_space(8.0);
-
-        theme::card(ui).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                theme::stat(ui, items.len().to_string(), "files", None);
-                ui.add_space(20.0);
-                let caption = if kind.removes_original() {
-                    "will be freed"
-                } else {
-                    "will be copied"
-                };
-                theme::stat(ui, human_size(bytes), caption, None);
+        ui.horizontal(|ui| {
+            egui::Frame::new()
+                .fill(color.gamma_multiply(0.15))
+                .corner_radius(10)
+                .inner_margin(Margin::same(8))
+                .show(ui, |ui| {
+                    ui.label(RichText::new(icon).size(20.0).color(color));
+                });
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(semibold(kind.label()).size(16.0).color(p.text));
+                ui.label(
+                    RichText::new("Review before continuing")
+                        .size(12.0)
+                        .color(p.muted),
+                );
             });
         });
-        ui.add_space(6.0);
+        ui.add_space(space::LG);
+
+        egui::Frame::new()
+            .fill(p.surface2)
+            .corner_radius(8)
+            .inner_margin(Margin::same(14))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    theme::metric(ui, items.len().to_string(), "files", None);
+                    ui.add_space(space::XL);
+                    let caption = if kind.removes_original() {
+                        "will be freed"
+                    } else {
+                        "will be copied"
+                    };
+                    theme::metric(ui, human_size(bytes), caption, None);
+                });
+            });
+        ui.add_space(space::MD);
 
         if kind.needs_keeper() {
-            ui.label("Each marked file is replaced by a link to the first kept file in its group.");
+            theme::hint(
+                ui,
+                "Each marked file is replaced by a link to the first kept file in its group.",
+            );
             if matches!(kind, ActionKind::HardLink) {
-                ui.label(
-                    RichText::new("Hard links only work when both files are on the same drive.")
-                        .small()
-                        .weak(),
+                theme::hint(
+                    ui,
+                    "Hard links only work when both files are on the same drive.",
                 );
             }
             #[cfg(windows)]
             if matches!(kind, ActionKind::SymLink) {
-                ui.label(
-                    RichText::new(
-                        "On Windows, symbolic links need Developer Mode or administrator rights.",
-                    )
-                    .small()
-                    .weak(),
+                theme::hint(
+                    ui,
+                    "On Windows, symbolic links need Developer Mode or administrator rights.",
                 );
             }
         } else if kind.removes_original() {
@@ -88,43 +107,40 @@ pub(crate) fn confirm_action(app: &mut DupeApp, ctx: &egui::Context) {
         if skipped > 0 {
             ui.label(
                 RichText::new(format!(
-                    "⚠ {skipped} group(s) will be skipped because no copy would be kept."
+                    "{}  {skipped} group(s) will be skipped because no copy would be kept.",
+                    icons::WARNING
                 ))
-                .color(WARN),
+                .size(12.5)
+                .color(p.warn),
             );
         }
         if kind.is_destructive() {
             ui.label(
-                RichText::new("⚠ This cannot be undone.")
-                    .color(REMOVE)
-                    .strong(),
+                semibold(format!("{}  This cannot be undone.", icons::WARNING))
+                    .size(12.5)
+                    .color(p.remove),
             );
         }
-        ui.label(
-            RichText::new("Files that changed since the scan are skipped automatically.")
-                .small()
-                .weak(),
+        theme::hint(
+            ui,
+            "Files that changed since the scan are skipped automatically.",
         );
 
-        ui.add_space(10.0);
+        ui.add_space(space::LG);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let label = format!("Confirm ({} files)", items.len());
-            let btn = if kind.is_destructive() || kind == ActionKind::Trash {
-                theme::danger_button(label)
+            let k = if kind.is_destructive() || kind == ActionKind::Trash {
+                Kind::Danger
             } else {
-                theme::primary_button(label)
+                Kind::Primary
             };
-            if ui
-                .add_enabled(!items.is_empty(), btn.min_size(egui::vec2(140.0, 32.0)))
-                .clicked()
-            {
+            let confirm = theme::button(ui, k, Size::Md, format!("Confirm ({})", items.len()))
+                .min_size(egui::vec2(120.0, 32.0));
+            if ui.add_enabled(!items.is_empty(), confirm).clicked() {
                 decision = Some(true);
             }
-            if ui
-                .add(egui::Button::new("Cancel").min_size(egui::vec2(90.0, 32.0)))
-                .clicked()
-                || ui.input(|i| i.key_pressed(egui::Key::Escape))
-            {
+            let cancel = theme::button(ui, Kind::Secondary, Size::Md, "Cancel")
+                .min_size(egui::vec2(90.0, 32.0));
+            if ui.add(cancel).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 decision = Some(false);
             }
         });
@@ -143,35 +159,60 @@ pub(crate) fn confirm_action(app: &mut DupeApp, ctx: &egui::Context) {
 
 pub(crate) fn log_window(app: &mut DupeApp, ctx: &egui::Context) {
     let mut open = app.show_log;
-    egui::Window::new("📜 Log")
+    egui::Window::new(semibold(format!("{}  Activity log", icons::TERMINAL)))
         .open(&mut open)
         .default_size([680.0, 320.0])
         .show(ctx, |ui| {
+            let p = Palette::of(ui);
             ui.horizontal(|ui| {
-                if ui.button("Clear").clicked() {
-                    app.log.clear();
-                }
-                if ui.button("Copy all").clicked() {
+                if ui
+                    .add(theme::button(
+                        ui,
+                        Kind::Secondary,
+                        Size::Sm,
+                        format!("{}  Copy all", icons::CLIPBOARD_TEXT),
+                    ))
+                    .clicked()
+                {
                     ui.ctx().copy_text(app.log.join("\n"));
                 }
+                if ui
+                    .add(theme::button(
+                        ui,
+                        Kind::Ghost,
+                        Size::Sm,
+                        format!("{}  Clear", icons::ERASER),
+                    ))
+                    .clicked()
+                {
+                    app.log.clear();
+                }
             });
-            ui.separator();
-            egui::ScrollArea::vertical()
-                .stick_to_bottom(true)
-                .auto_shrink(false)
+            ui.add_space(space::XS);
+            egui::Frame::new()
+                .fill(p.bg)
+                .corner_radius(8)
+                .inner_margin(Margin::same(10))
                 .show(ui, |ui| {
-                    if app.log.is_empty() {
-                        ui.label(RichText::new("Nothing logged yet.").weak());
-                    }
-                    for l in &app.log {
-                        let mut t = RichText::new(l).monospace();
-                        if l.trim_start().starts_with('✖') {
-                            t = t.color(REMOVE);
-                        } else if l.trim_start().starts_with('⚠') {
-                            t = t.color(WARN);
-                        }
-                        ui.label(t);
-                    }
+                    egui::ScrollArea::vertical()
+                        .stick_to_bottom(true)
+                        .auto_shrink(false)
+                        .show(ui, |ui| {
+                            if app.log.is_empty() {
+                                ui.label(RichText::new("Nothing logged yet.").color(p.muted));
+                            }
+                            for l in &app.log {
+                                let t = l.trim_start();
+                                let color = if t.starts_with('✖') {
+                                    p.remove
+                                } else if t.starts_with('⚠') {
+                                    p.warn
+                                } else {
+                                    p.text
+                                };
+                                ui.label(RichText::new(l).monospace().color(color));
+                            }
+                        });
                 });
         });
     app.show_log = open;

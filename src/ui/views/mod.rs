@@ -7,11 +7,11 @@ mod widgets;
 
 use std::path::PathBuf;
 
-use eframe::egui::{self, Align, Layout, RichText};
+use eframe::egui::{self, Align, Layout, Margin, RichText, Stroke};
 
 use super::results::GroupSort;
-use super::theme::{self, KEEP, REMOVE};
-use super::{DupeApp, View};
+use super::theme::{self, Palette, space};
+use super::{DupeApp, View, icons};
 use crate::model::FileKind;
 use crate::selection;
 
@@ -28,14 +28,15 @@ pub(crate) enum Cmd {
 
 pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
     toolbar(app, ui);
-    ui.add_space(4.0);
     if app.results.visible().is_empty() {
-        ui.add_space(40.0);
+        ui.add_space(48.0);
         ui.vertical_centered(|ui| {
+            let p = Palette::of(ui);
+            ui.label(RichText::new(icons::FUNNEL).size(28.0).color(p.muted));
             ui.label(
-                RichText::new("No groups match the current filter.")
-                    .size(16.0)
-                    .weak(),
+                RichText::new("No groups match the current filters.")
+                    .size(14.0)
+                    .color(p.muted),
             );
         });
         return;
@@ -48,62 +49,72 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
 }
 
 fn toolbar(app: &mut DupeApp, ui: &mut egui::Ui) {
+    let p = Palette::of(ui);
     let before = app.results.filter.clone();
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
+        let list = format!("{}  List", icons::ROWS);
+        let grid = format!("{}  Grid", icons::SQUARES_FOUR);
+        let cmp = format!("{}  Side by side", icons::COLUMNS);
         theme::segmented(
             ui,
+            "view",
             &mut app.view,
             &[
-                (View::List, "☰ List"),
-                (View::Grid, "▦ Grid"),
-                (View::Compare, "⚖ Side by side"),
+                (View::List, &list),
+                (View::Grid, &grid),
+                (View::Compare, &cmp),
             ],
+            false,
         );
-        ui.separator();
+        ui.add_space(space::XS);
+
         let f = &mut app.results.filter;
+        let kind_text = match f.kind {
+            Some(k) => format!("{}  {}", icons::for_kind(k), k.label()),
+            None => format!("{}  All types", icons::FUNNEL),
+        };
         egui::ComboBox::from_id_salt("kind_filter")
-            .selected_text(
-                f.kind
-                    .map(|k| format!("{} {}", k.icon(), k.label()))
-                    .unwrap_or("All types".into()),
-            )
+            .selected_text(kind_text)
+            .width(150.0)
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut f.kind, None, "All types");
+                ui.selectable_value(&mut f.kind, None, format!("{}  All types", icons::FUNNEL));
                 for k in FileKind::ALL {
                     ui.selectable_value(
                         &mut f.kind,
                         Some(k),
-                        format!("{} {}", k.icon(), k.label()),
+                        format!("{}  {}", icons::for_kind(k), k.label()),
                     );
                 }
             });
         egui::ComboBox::from_id_salt("sort")
-            .selected_text(format!("Sort: {}", f.sort.label()))
-            .width(190.0)
+            .selected_text(format!("{}  {}", icons::SORT, f.sort.label()))
+            .width(180.0)
             .show_ui(ui, |ui| {
                 for s in GroupSort::ALL {
                     ui.selectable_value(&mut f.sort, s, s.label());
                 }
             });
-        ui.add(
-            egui::TextEdit::singleline(&mut f.search)
-                .hint_text("🔎 Filter by path…")
-                .desired_width(170.0),
-        );
-        ui.toggle_value(&mut f.only_marked, "Only with marks")
-            .on_hover_text("Show only groups that contain marked files");
+        search_box(ui, &mut f.search, &p);
+        if theme::chip(ui, f.only_marked, "Only with marks")
+            .on_hover_text("Show only groups that contain marked files")
+            .clicked()
+        {
+            f.only_marked = !f.only_marked;
+        }
 
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if app.view != View::List {
-                ui.add(egui::Slider::new(&mut app.thumb_px, 80.0..=360.0).show_value(false));
-                ui.label(RichText::new("🔍 Size").small());
-            }
-        });
+        if app.view != View::List {
+            ui.add_space(space::XS);
+            ui.label(RichText::new(icons::IMAGE).size(15.0).color(p.muted))
+                .on_hover_text("Thumbnail size");
+            ui.spacing_mut().slider_width = 110.0;
+            ui.add(egui::Slider::new(&mut app.thumb_px, 80.0..=360.0).show_value(false));
+        }
     });
     if app.results.filter != before {
         app.results.mark_dirty();
     }
 
+    ui.add_space(space::XS);
     ui.horizontal(|ui| {
         let visible = app.results.visible();
         let files: usize = visible
@@ -111,27 +122,47 @@ fn toolbar(app: &mut DupeApp, ui: &mut egui::Ui) {
             .map(|&i| app.results.groups[i].files.len())
             .sum();
         ui.label(
-            RichText::new(format!(
-                "Showing {} groups · {} files",
-                visible.len(),
-                files
-            ))
-            .small()
-            .weak(),
+            RichText::new(format!("{} groups · {} files", visible.len(), files))
+                .size(12.0)
+                .color(p.muted),
         );
-        ui.separator();
-        theme::badge(ui, "✔ KEEP", KEEP);
-        ui.label(RichText::new("stays untouched").small().weak());
-        theme::badge(ui, "✖ REMOVE", REMOVE);
-        ui.label(RichText::new("the action applies to it").small().weak());
-        ui.separator();
-        ui.label(
-            RichText::new("Click to switch · right-click for options · double-click to open")
-                .small()
-                .weak(),
-        );
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.label(
+                RichText::new(
+                    "Click a file to switch · right-click for options · double-click to open",
+                )
+                .size(12.0)
+                .color(p.muted),
+            );
+        });
     });
-    ui.separator();
+    ui.add_space(space::SM);
+}
+
+fn search_box(ui: &mut egui::Ui, text: &mut String, p: &Palette) {
+    egui::Frame::new()
+        .fill(p.surface2)
+        .stroke(Stroke::new(1.0, p.border))
+        .corner_radius(theme::RADIUS)
+        .inner_margin(Margin::symmetric(8, 5))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(icons::MAGNIFYING_GLASS)
+                        .size(14.0)
+                        .color(p.muted),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(text)
+                        .hint_text("Search paths")
+                        .frame(egui::Frame::NONE)
+                        .margin(Margin::ZERO)
+                        .align(egui::Align2::LEFT_CENTER)
+                        .min_size(egui::vec2(0.0, 20.0))
+                        .desired_width(170.0),
+                );
+            });
+        });
 }
 
 pub(crate) fn run_cmds(app: &mut DupeApp, cmds: Vec<Cmd>, ctx: &egui::Context) {

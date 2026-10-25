@@ -97,17 +97,6 @@ impl FileKind {
         }
     }
 
-    pub fn icon(self) -> &'static str {
-        match self {
-            FileKind::Image => "🖼",
-            FileKind::Video => "🎬",
-            FileKind::Audio => "🎵",
-            FileKind::Document => "📄",
-            FileKind::Archive => "📦",
-            FileKind::Other => "📁",
-        }
-    }
-
     /// Position in [`FileKind::ALL`]; used to index `ScanConfig::kinds`.
     pub fn index(self) -> usize {
         FileKind::ALL.iter().position(|k| *k == self).unwrap_or(0)

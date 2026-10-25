@@ -5,7 +5,7 @@
 //! UI keeps the same sizes and spacing.
 
 use eframe::egui::{
-    self, Align2, Button, Color32, CornerRadius, FontFamily, FontId, Frame, Margin, Response,
+    self, Align2, Button, Color32, CornerRadius, FontFamily, FontId, Frame, Margin, Rect, Response,
     RichText, Sense, Shadow, Stroke, TextStyle, Theme, Ui, Vec2,
 };
 
@@ -241,7 +241,7 @@ pub enum Size {
 }
 
 impl Size {
-    fn height(self) -> f32 {
+    pub fn height(self) -> f32 {
         match self {
             Size::Sm => height::SM,
             Size::Md => height::MD,
@@ -374,45 +374,152 @@ pub fn badge(ui: &mut Ui, text: impl Into<String>, color: Color32) -> Response {
     resp
 }
 
+/// Size of the interactive keep/remove pill used in tables and cards.
+pub const STATUS_PILL: Vec2 = Vec2::new(84.0, 24.0);
+/// Size of the solid keep/remove pill painted on top of thumbnails.
+pub const STATUS_PILL_SOLID: Vec2 = Vec2::new(80.0, 22.0);
+
 /// The keep/remove status pill for a file. Returns true when clicked.
 pub fn mark_toggle(ui: &mut Ui, marked: bool) -> bool {
-    let p = Palette::of(ui);
-    let (icon, label, color) = if marked {
-        (icons::X_CIRCLE, "Remove", p.remove)
-    } else {
-        (icons::CHECK_CIRCLE, "Keep", p.keep)
-    };
-    let mut job = egui::text::LayoutJob::default();
-    fonts::icon_fill(icon).size(13.0).color(color).append_to(
-        &mut job,
-        ui.style(),
-        egui::FontSelection::Default,
-        egui::Align::Center,
-    );
-    medium(format!("  {label}"))
-        .size(12.0)
-        .color(color)
-        .append_to(
-            &mut job,
-            ui.style(),
-            egui::FontSelection::Default,
-            egui::Align::Center,
-        );
-    let tint = if ui.visuals().dark_mode { 0.16 } else { 0.10 };
-    ui.add(
-        Button::new(job)
-            .fill(color.gamma_multiply(tint))
-            .stroke(Stroke::new(1.0, color.gamma_multiply(0.45)))
-            .corner_radius(12)
-            .min_size(Vec2::new(84.0, 24.0)),
-    )
-    .on_hover_text(if marked {
-        "Marked: the next action will be applied to this file. Click to keep it instead."
-    } else {
-        "Kept: this file will not be touched. Click to mark it for removal."
-    })
-    .clicked()
+    let (rect, resp) = ui.allocate_exact_size(STATUS_PILL, Sense::click());
+    if ui.is_rect_visible(rect) {
+        paint_status_pill(ui, rect, marked, false, resp.hovered());
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+        .on_hover_text(if marked {
+            "Marked: the next action will be applied to this file. Click to keep it instead."
+        } else {
+            "Kept: this file will not be touched. Click to mark it for removal."
+        })
+        .clicked()
 }
+
+/// Paints a keep/remove pill into `rect`.
+///
+/// The check / cross glyph is drawn with shapes rather than an icon font so it is always
+/// centred exactly on the text, whatever the font metrics. `solid` is the high-contrast
+/// variant used on top of images.
+pub fn paint_status_pill(ui: &Ui, rect: Rect, marked: bool, solid: bool, hovered: bool) {
+    let p = Palette::of(ui);
+    let (label, color) = if marked {
+        ("Remove", p.remove)
+    } else {
+        ("Keep", p.keep)
+    };
+    let (fill, stroke, fg, disc, mark) = if solid {
+        (color, Stroke::NONE, Color32::WHITE, Color32::WHITE, color)
+    } else {
+        let tint = if ui.visuals().dark_mode { 0.16 } else { 0.10 };
+        let tint = if hovered { tint * 1.8 } else { tint };
+        let fill = color.gamma_multiply(tint);
+        (
+            fill,
+            Stroke::new(1.0, color.gamma_multiply(0.45)),
+            color,
+            color,
+            Color32::WHITE,
+        )
+    };
+    let painter = ui.painter();
+    painter.rect(
+        rect,
+        rect.height() / 2.0,
+        fill,
+        stroke,
+        egui::StrokeKind::Inside,
+    );
+
+    let font = FontId::new(12.0, FontFamily::Name(fonts::MEDIUM.into()));
+    let galley = painter.layout_no_wrap(label.to_owned(), font, fg);
+    let d = (rect.height() * 0.5).round();
+    let gap = 5.0;
+    let content_w = d + gap + galley.size().x;
+    let x0 = (rect.center().x - content_w / 2.0).round();
+    let cy = rect.center().y;
+    let c = egui::pos2(x0 + d / 2.0, cy);
+    painter.circle_filled(c, d / 2.0, disc);
+    let s = d / 12.0;
+    let line = Stroke::new(1.5 * s.max(0.9), mark);
+    if marked {
+        let k = 2.2 * s;
+        painter.line_segment([c + Vec2::new(-k, -k), c + Vec2::new(k, k)], line);
+        painter.line_segment([c + Vec2::new(-k, k), c + Vec2::new(k, -k)], line);
+    } else {
+        painter.add(egui::Shape::line(
+            vec![
+                c + Vec2::new(-2.6, 0.1) * s,
+                c + Vec2::new(-0.8, 1.9) * s,
+                c + Vec2::new(2.7, -1.8) * s,
+            ],
+            line,
+        ));
+    }
+    let text_pos = egui::pos2(x0 + d + gap, (cy - galley.size().y / 2.0).round());
+    painter.galley(text_pos, galley, fg);
+}
+
+/// Allocates a full-width row of height `h` and splits it into `n` equal cells, so
+/// buttons placed with `ui.put(cell, ..)` are exactly the same width whatever their text.
+pub fn equal_cells(ui: &mut Ui, n: usize, h: f32) -> Vec<Rect> {
+    let n = n.max(1);
+    let gap = ui.spacing().item_spacing.x;
+    let (row, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), h), Sense::hover());
+    let w = (row.width() - gap * (n - 1) as f32) / n as f32;
+    (0..n)
+        .map(|i| {
+            let x = row.left() + i as f32 * (w + gap);
+            Rect::from_min_size(egui::pos2(x.round(), row.top()), Vec2::new(w.floor(), h))
+        })
+        .collect()
+}
+
+/// Single-line search input with a leading magnifier, exactly `height::MD` tall so it
+/// lines up with buttons and combo boxes in the same toolbar.
+pub fn search_field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> Response {
+    let p = Palette::of(ui);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height::MD), Sense::hover());
+    let id = ui.make_persistent_id(("search_field", hint));
+    let focused = ui.memory(|m| m.has_focus(id));
+    let border = if focused { p.accent } else { p.border };
+    ui.painter().rect(
+        rect,
+        RADIUS,
+        p.surface2,
+        Stroke::new(1.0, border),
+        egui::StrokeKind::Inside,
+    );
+    let icon_c = egui::pos2(rect.left() + 18.0, rect.center().y);
+    ui.painter().text(
+        icon_c,
+        Align2::CENTER_CENTER,
+        icons::MAGNIFYING_GLASS,
+        FontId::proportional(14.0),
+        p.muted,
+    );
+    let edit_rect = Rect::from_min_max(
+        egui::pos2(rect.left() + 32.0, rect.top() + 1.0),
+        egui::pos2(rect.right() - 8.0, rect.bottom() - 1.0),
+    );
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(edit_rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    child.add(
+        egui::TextEdit::singleline(text)
+            .id(id)
+            .hint_text(hint)
+            .frame(Frame::NONE)
+            .margin(Margin::ZERO)
+            .align(Align2::LEFT_CENTER)
+            .min_size(Vec2::new(0.0, edit_rect.height()))
+            .desired_width(edit_rect.width()),
+    )
+}
+
+/// Segment height so the whole control (3 px padding + 1 px border each side) is
+/// exactly `height::MD`.
+const SEGMENT_H: f32 = height::MD - 8.0;
 
 /// iOS / Fluent style segmented control. Returns true if the value changed.
 ///
@@ -442,6 +549,9 @@ pub fn segmented<T: PartialEq + Copy>(
         .corner_radius(8)
         .inner_margin(Margin::same(3))
         .show(ui, |ui| {
+            // Set before `horizontal`, which uses `interact_size.y` as its row height.
+            ui.spacing_mut().interact_size.y = SEGMENT_H;
+            ui.spacing_mut().button_padding.y = 2.0;
             ui.push_id(id, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
@@ -460,7 +570,7 @@ pub fn segmented<T: PartialEq + Copy>(
                         };
                         let mut b = Button::new(text)
                             .corner_radius(6)
-                            .min_size(Vec2::new(seg_w, height::SM));
+                            .min_size(Vec2::new(seg_w, SEGMENT_H));
                         b = if selected {
                             b.fill(selected_fill).stroke(Stroke::new(1.0, p.border))
                         } else {
@@ -512,6 +622,11 @@ pub fn menu_caption(ui: &mut Ui, text: &str) {
 
 /// Toggleable chip (filters). Returns the response; flip your bool on click.
 pub fn chip(ui: &mut Ui, selected: bool, label: impl Into<String>) -> Response {
+    chip_sized(ui, selected, label, height::SM)
+}
+
+/// [`chip`] with an explicit height, e.g. `height::MD` inside a toolbar.
+pub fn chip_sized(ui: &mut Ui, selected: bool, label: impl Into<String>, h: f32) -> Response {
     let p = Palette::of(ui);
     let b = if selected {
         Button::new(medium(label).size(12.5).color(p.accent))
@@ -522,17 +637,33 @@ pub fn chip(ui: &mut Ui, selected: bool, label: impl Into<String>) -> Response {
             .fill(p.surface2)
             .stroke(Stroke::new(1.0, p.border))
     };
-    ui.add(b.corner_radius(14).min_size(Vec2::new(0.0, height::SM)))
+    let radius = (h / 2.0) as u8;
+    ui.add(b.corner_radius(radius).min_size(Vec2::new(0.0, h)))
 }
 
 /// Headline number with a caption underneath (top bar, dialogs).
+///
+/// Allocated as one fixed-height block so a row of metrics shares the same top line and
+/// baseline and is centred like any other widget in a centred row.
 pub fn metric(ui: &mut Ui, value: impl Into<String>, caption: &str, color: Option<Color32>) {
     let p = Palette::of(ui);
-    ui.vertical(|ui| {
-        ui.spacing_mut().item_spacing.y = 0.0;
-        ui.label(semibold(value).size(16.0).color(color.unwrap_or(p.text)));
-        ui.label(RichText::new(caption).size(11.5).color(p.muted));
-    });
+    let painter = ui.painter();
+    let value = painter.layout_no_wrap(
+        value.into(),
+        FontId::new(16.0, FontFamily::Name(fonts::SEMIBOLD.into())),
+        color.unwrap_or(p.text),
+    );
+    let caption = painter.layout_no_wrap(caption.to_owned(), FontId::proportional(11.5), p.muted);
+    let gap = 1.0;
+    let size = Vec2::new(
+        value.size().x.max(caption.size().x).ceil(),
+        (value.size().y + gap + caption.size().y).ceil(),
+    );
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let caption_y = rect.top() + value.size().y + gap;
+    ui.painter().galley(rect.left_top(), value, p.text);
+    ui.painter()
+        .galley(egui::pos2(rect.left(), caption_y.round()), caption, p.muted);
 }
 
 /// Truncates from the left so the end of a path (the informative part) stays visible.

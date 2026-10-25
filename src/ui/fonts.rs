@@ -13,8 +13,8 @@ const INTER_SEMIBOLD: &[u8] = include_bytes!("../../assets/fonts/Inter-SemiBold.
 const PHOSPHOR: &[u8] = include_bytes!("../../assets/fonts/Phosphor.ttf");
 const PHOSPHOR_FILL: &[u8] = include_bytes!("../../assets/fonts/Phosphor-Fill.ttf");
 
-const MEDIUM: &str = "inter-medium";
-const SEMIBOLD: &str = "inter-semibold";
+pub(crate) const MEDIUM: &str = "inter-medium";
+pub(crate) const SEMIBOLD: &str = "inter-semibold";
 const ICON_FILL: &str = "phosphor-fill";
 
 /// Builds the font set. egui's own fonts stay as a last fallback for rare symbols.

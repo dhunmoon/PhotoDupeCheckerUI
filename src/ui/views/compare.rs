@@ -5,7 +5,7 @@ use eframe::egui::{self, RichText, Stroke, Vec2};
 
 use super::Cmd;
 use super::widgets::{file_interactions, group_title, paint_preview, paint_status};
-use crate::model::{FolderRole, extension_lower, format_time, human_size};
+use crate::model::{FileEntry, FolderRole, extension_lower, format_time, human_size};
 use crate::ui::DupeApp;
 use crate::ui::fonts::{medium, semibold};
 use crate::ui::icons;
@@ -16,7 +16,7 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
     navigation(ui, &mut app.compare_pos, n);
 
     let gi = app.results.visible()[app.compare_pos];
-    let preview = (app.thumb_px * 1.6).max(220.0);
+    let preview = (app.thumb_px * 1.6).max(280.0);
     let load_px = if preview > 512.0 { 1024 } else { 512 };
     let DupeApp {
         results, thumbs, ..
@@ -37,14 +37,15 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
             ui.spacing_mut().item_spacing.x = space::MD;
             for f in &g.files {
                 let marked = results.is_marked(&f.path);
-                let stroke = if marked {
-                    Stroke::new(2.0, p.remove)
+                // The inner margin absorbs the thicker border so the content never shifts.
+                let (stroke, margin) = if marked {
+                    (Stroke::new(2.0, p.remove), 11)
                 } else {
-                    Stroke::new(1.0, p.border)
+                    (Stroke::new(1.0, p.border), 12)
                 };
                 theme::card(ui)
                     .stroke(stroke)
-                    .inner_margin(egui::Margin::same(12))
+                    .inner_margin(egui::Margin::same(margin))
                     .show(ui, |ui| {
                         ui.set_width(preview);
                         ui.vertical(|ui| {
@@ -64,16 +65,23 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                             );
 
                             ui.add_space(space::SM);
+                            // One line each (full text on hover) so every card has the same height.
                             ui.add(
                                 egui::Label::new(semibold(f.name()).size(14.5).color(p.text))
-                                    .wrap(),
-                            );
+                                    .truncate(),
+                            )
+                            .on_hover_text(f.name());
+                            let folder = f.parent_display();
+                            let max_chars = (preview / 6.6) as usize;
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(f.parent_display()).size(12.0).color(p.muted),
+                                    RichText::new(theme::truncate_left(&folder, max_chars))
+                                        .size(12.0)
+                                        .color(p.muted),
                                 )
-                                .wrap(),
-                            );
+                                .truncate(),
+                            )
+                            .on_hover_text(folder);
                             ui.add_space(space::SM);
 
                             egui::Grid::new(("cmp", &f.path))
@@ -155,53 +163,72 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                                 });
 
                             ui.add_space(space::MD);
-                            ui.horizontal(|ui| {
-                                let keep = theme::button(
-                                    ui,
-                                    Kind::Primary,
-                                    Size::Sm,
-                                    format!("{}  Keep only this", icons::CHECK),
-                                );
-                                if ui
-                                    .add(keep)
-                                    .on_hover_text("Mark every other copy in this group")
-                                    .clicked()
-                                {
-                                    cmds.push(Cmd::KeepOnly(gi, f.path.clone()));
-                                }
-                                if theme::mark_toggle(ui, marked) {
-                                    cmds.push(Cmd::Toggle(f.path.clone()));
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .add(theme::button(
-                                        ui,
-                                        Kind::Ghost,
-                                        Size::Sm,
-                                        format!("{}  Open", icons::ARROW_SQUARE_OUT),
-                                    ))
-                                    .clicked()
-                                {
-                                    cmds.push(Cmd::Open(f.path.clone()));
-                                }
-                                if ui
-                                    .add(theme::button(
-                                        ui,
-                                        Kind::Ghost,
-                                        Size::Sm,
-                                        format!("{}  Show in folder", icons::FOLDER_OPEN),
-                                    ))
-                                    .clicked()
-                                {
-                                    cmds.push(Cmd::OpenFolder(f.path.clone()));
-                                }
-                            });
+                            footer(ui, gi, f, marked, cmds);
                         });
                     });
             }
         });
     });
+}
+
+/// Card actions: two rows of two equal-width buttons.
+fn footer(ui: &mut egui::Ui, gi: usize, f: &FileEntry, marked: bool, cmds: &mut Vec<Cmd>) {
+    ui.spacing_mut().button_padding.x = space::SM;
+    let h = Size::Md.height();
+
+    let cells = theme::equal_cells(ui, 2, h);
+    let keep = theme::button(
+        ui,
+        Kind::Primary,
+        Size::Md,
+        format!("{}  Keep only this", icons::CHECK),
+    );
+    if ui
+        .put(cells[0], keep.truncate())
+        .on_hover_text("Keep this copy and mark every other copy in the group")
+        .clicked()
+    {
+        cmds.push(Cmd::KeepOnly(gi, f.path.clone()));
+    }
+    let (label, tip) = if marked {
+        (
+            format!("{}  Unmark", icons::ARROW_CLOCKWISE),
+            "Unmark: this file will not be touched",
+        )
+    } else {
+        (
+            format!("{}  Remove", icons::TRASH),
+            "Mark this file for the next action",
+        )
+    };
+    let toggle = theme::button(ui, Kind::Secondary, Size::Md, label);
+    if ui
+        .put(cells[1], toggle.truncate())
+        .on_hover_text(tip)
+        .clicked()
+    {
+        cmds.push(Cmd::Toggle(f.path.clone()));
+    }
+
+    let cells = theme::equal_cells(ui, 2, h);
+    let open = theme::button(
+        ui,
+        Kind::Ghost,
+        Size::Md,
+        format!("{}  Open", icons::ARROW_SQUARE_OUT),
+    );
+    if ui.put(cells[0], open.truncate()).clicked() {
+        cmds.push(Cmd::Open(f.path.clone()));
+    }
+    let reveal = theme::button(
+        ui,
+        Kind::Ghost,
+        Size::Md,
+        format!("{}  Show in folder", icons::FOLDER_OPEN),
+    );
+    if ui.put(cells[1], reveal.truncate()).clicked() {
+        cmds.push(Cmd::OpenFolder(f.path.clone()));
+    }
 }
 
 fn navigation(ui: &mut egui::Ui, pos: &mut usize, n: usize) {

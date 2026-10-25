@@ -4,7 +4,7 @@ use eframe::egui::{self, Align2, Color32, FontId, Rect, RichText, Vec2};
 
 use super::Cmd;
 use crate::model::{DupGroup, FileEntry, human_size, is_decodable_image};
-use crate::ui::fonts::{medium, semibold};
+use crate::ui::fonts::semibold;
 use crate::ui::icons;
 use crate::ui::theme::{self, Palette};
 use crate::ui::thumbs::{Thumb, ThumbCache};
@@ -115,36 +115,8 @@ fn center_icon(ui: &egui::Ui, rect: Rect, icon: &str, size: f32, color: Color32)
     );
 }
 
-/// Painter-only keep/remove pill for custom-drawn cards.
+/// Painter-only keep/remove pill for custom-drawn cards, anchored at its top-left corner.
 pub(super) fn paint_status(ui: &egui::Ui, anchor: egui::Pos2, marked: bool) {
-    let p = Palette::of(ui);
-    let (icon, label, color) = if marked {
-        (icons::X_CIRCLE, "Remove", p.remove)
-    } else {
-        (icons::CHECK_CIRCLE, "Keep", p.keep)
-    };
-    let mut job = egui::text::LayoutJob::default();
-    crate::ui::fonts::icon_fill(icon)
-        .size(12.0)
-        .color(Color32::WHITE)
-        .append_to(
-            &mut job,
-            ui.style(),
-            egui::FontSelection::Default,
-            egui::Align::Center,
-        );
-    medium(format!(" {label}"))
-        .size(11.5)
-        .color(Color32::WHITE)
-        .append_to(
-            &mut job,
-            ui.style(),
-            egui::FontSelection::Default,
-            egui::Align::Center,
-        );
-    let galley = ui.painter().layout_job(job);
-    let rect = Rect::from_min_size(anchor, galley.size() + Vec2::new(14.0, 6.0));
-    ui.painter().rect_filled(rect, 10.0, color);
-    ui.painter()
-        .galley(rect.min + Vec2::new(7.0, 3.0), galley, Color32::WHITE);
+    let rect = Rect::from_min_size(anchor, theme::STATUS_PILL_SOLID);
+    theme::paint_status_pill(ui, rect, marked, true, false);
 }

@@ -30,7 +30,15 @@ jobs:
 
   linux:
     needs: check-version
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          # Native ARM runner, so appimagetool for arm64 can run.
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -43,10 +51,14 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild,cargo-deb,cargo-generate-rpm
-      - run: ./packaging/package-linux.sh
+      - name: Install bsdtar and zstd (for the Arch package)
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zstd
+      - run: ./packaging/package-linux.sh ${{ matrix.arch }}
+      - name: Smoke test
+        run: APPIMAGE_EXTRACT_AND_RUN=1 ./dist/*.AppImage --help
       - uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: linux-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
 
@@ -54,7 +66,11 @@ jobs:
     needs: check-version
     strategy:
       matrix:
-        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+        include:
+          - target: aarch64-apple-darwin
+            name: apple-silicon
+          - target: x86_64-apple-darwin
+            name: intel
     # Apple Silicon runner; the Intel build is cross-compiled with the same Xcode SDK.
     runs-on: macos-latest
     steps:
@@ -68,24 +84,46 @@ jobs:
       - run: ./packaging/package-macos.sh ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.target }}
+          name: macos-${{ matrix.name }}
           path: dist/*
           if-no-files-found: error
 
   windows:
     needs: check-version
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          # 32-bit build, cross-compiled on the x64 runner (MSVC ships x86 tools).
+          - arch: x86
+            target: i686-pc-windows-msvc
+            runner: windows-latest
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
-      - run: ./packaging/package-windows.ps1
+        with:
+          key: ${{ matrix.target }}
+      - name: Install Inno Setup (if missing)
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+        shell: pwsh
+      - run: ./packaging/package-windows.ps1 -Arch ${{ matrix.arch }}
         shell: pwsh
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
+          name: windows-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
 

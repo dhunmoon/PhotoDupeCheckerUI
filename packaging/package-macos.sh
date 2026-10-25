@@ -2,8 +2,8 @@
 # Builds "Dupe Finder.app" and wraps it in a drag-to-Applications .dmg in dist/.
 # Must run on macOS (uses codesign / hdiutil).
 #
-#   packaging/package-macos.sh aarch64-apple-darwin   -> ...-macos-apple-silicon.dmg
-#   packaging/package-macos.sh x86_64-apple-darwin    -> ...-macos-intel.dmg
+#   packaging/package-macos.sh aarch64-apple-darwin   -> DupeFinder-<version>-macos-apple-silicon.dmg
+#   packaging/package-macos.sh x86_64-apple-darwin    -> DupeFinder-<version>-macos-intel.dmg
 #
 # The app is only ad-hoc signed (no Apple Developer ID), so users see a Gatekeeper
 # prompt on first launch; see README "Installing" for the workaround.
@@ -18,7 +18,7 @@ case "$TARGET" in
 esac
 VERSION=$(cargo metadata --no-deps --format-version 1 |
     python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
-NAME=dupe-finder-$VERSION-macos-$LABEL
+NAME=DupeFinder-$VERSION-macos-$LABEL
 DIST=dist
 
 export MACOSX_DEPLOYMENT_TARGET=11.0

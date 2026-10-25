@@ -40,17 +40,18 @@ finds **the same photo saved in a different format, size or quality**.
 Get the latest build from the
 [Releases page](https://github.com/dhunmoon/PhotoDupeCheckerUI/releases/latest):
 
-| System | File |
-|---|---|
-| Windows 10/11 (64-bit) | `…-windows-x86_64-setup.exe` (installer) or `…-windows-x86_64.zip` (portable) |
-| macOS, Apple Silicon | `…-macos-apple-silicon.dmg` |
-| macOS, Intel | `…-macos-intel.dmg` |
-| Ubuntu / Debian / Mint | `…_amd64.deb` — `sudo apt install ./dupe-finder_*.deb` |
-| Fedora / RHEL / openSUSE | `…x86_64.rpm` — `sudo dnf install ./dupe-finder-*.rpm` |
-| Any other Linux | `…-linux-x86_64.AppImage` (`chmod +x`, then run) or the `.tar.gz` |
+| System | CPU | Files |
+|---|---|---|
+| Windows 10/11 | x64, arm64, x86 (32-bit) | `DupeFinder-<ver>-windows-<cpu>-setup.exe` (installer) or `-portable.zip` |
+| macOS 11+ | Apple Silicon, Intel | `DupeFinder-<ver>-macos-apple-silicon.dmg` / `-macos-intel.dmg` |
+| Ubuntu / Debian / Mint | x64, arm64 | `DupeFinder-<ver>-linux-<cpu>.deb` — `sudo apt install ./DupeFinder-*.deb` |
+| Fedora / RHEL / openSUSE | x64, arm64 | `DupeFinder-<ver>-linux-<cpu>.rpm` — `sudo dnf install ./DupeFinder-*.rpm` |
+| Arch / Manjaro | x64, arm64 | `DupeFinder-<ver>-linux-<cpu>.pkg.tar.zst` — `sudo pacman -U DupeFinder-*.pkg.tar.zst` |
+| Any other Linux | x64, arm64 | `DupeFinder-<ver>-linux-<cpu>.AppImage` (`chmod +x`, then run) or `.tar.gz` |
 
-The Linux builds need glibc 2.28 or newer: Debian 10+, Ubuntu 18.10+, RHEL/Rocky 8+,
-Fedora 29+, or any current Arch/openSUSE.
+Linux builds need glibc 2.28 or newer: Debian 10+, Ubuntu 18.10+, RHEL/Rocky 8+,
+Fedora 29+, or any current Arch/openSUSE. musl-based distros such as Alpine are not
+supported.
 
 The builds are not code-signed yet, so the first launch shows a warning:
 
@@ -166,14 +167,18 @@ Run workflow**. The files are attached to that run.
 
 | Platform | Built on | Output |
 |---|---|---|
-| Linux x86_64 | ubuntu-latest, `cargo zigbuild` against glibc 2.28 | `.tar.gz`, `.AppImage`, `.deb`, `.rpm` |
-| macOS Apple Silicon / Intel | macos-latest (Intel is cross-compiled), min macOS 11 | `.dmg` with `Dupe Finder.app`, ad-hoc signed |
-| Windows x86_64 | windows-latest (MSVC), icon embedded by `build.rs` | Inno Setup installer + portable `.zip` |
+| Linux x64 / arm64 | `ubuntu-latest` / `ubuntu-24.04-arm`, `cargo zigbuild` against glibc 2.28 | `.AppImage`, `.deb`, `.rpm`, `.pkg.tar.zst`, `.tar.gz` |
+| macOS Apple Silicon / Intel | `macos-latest` (Intel is cross-compiled), min macOS 11 | `.dmg` with `Dupe Finder.app`, ad-hoc signed |
+| Windows x64 / x86 / arm64 | `windows-latest` (x86 is cross-compiled) / `windows-11-arm`; `build.rs` embeds the icon | Inno Setup `-setup.exe` + `-portable.zip` |
+
+All files are named `DupeFinder-<version>-<os>-<arch>[-variant].<ext>`.
 
 The packaging scripts in [`packaging/`](packaging) also run locally. For example,
-`packaging/package-linux.sh` needs `cargo-zigbuild` with zig, `cargo-deb` and
-`cargo-generate-rpm`. The deb/rpm metadata is in `Cargo.toml` under
-`[package.metadata.*]`. The platform icons (`packaging/windows/app.ico`,
+`packaging/package-linux.sh [x64|arm64]` needs `cargo-zigbuild` with zig, `cargo-deb`,
+`cargo-generate-rpm`, `bsdtar` and `zstd`, and
+`packaging\package-windows.ps1 -Arch x64|x86|arm64` needs Inno Setup 6. The Arch package
+is assembled by the script itself, the same way `makepkg` builds one. The deb/rpm
+metadata is in `Cargo.toml` under `[package.metadata.*]`. The platform icons (`packaging/windows/app.ico`,
 `packaging/macos/AppIcon.icns`, `packaging/linux/dupe-finder.png`) are generated from
 `assets/logo/app-icon.png`. Regenerate them if the logo changes.
 

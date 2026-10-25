@@ -47,15 +47,22 @@ fn load_jpeg_scaled(path: &Path, min_side: u32) -> Result<LoadedImage, String> {
         }
         jpeg_decoder::PixelFormat::L16 => {
             let px: Vec<u16> = pixels
-                .chunks_exact(2)
-                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_be_bytes(*c))
                 .collect();
             DynamicImage::ImageLuma16(
                 ImageBuffer::<Luma<u16>, _>::from_raw(w, h, px).ok_or("bad buffer")?,
             )
         }
         jpeg_decoder::PixelFormat::CMYK32 => {
-            let rgb: Vec<u8> = pixels.chunks_exact(4).flat_map(cmyk_to_rgb).collect();
+            let rgb: Vec<u8> = pixels
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(cmyk_to_rgb)
+                .collect();
             DynamicImage::ImageRgb8(
                 ImageBuffer::<Rgb<u8>, _>::from_raw(w, h, rgb).ok_or("bad buffer")?,
             )
@@ -71,7 +78,7 @@ fn load_jpeg_scaled(path: &Path, min_side: u32) -> Result<LoadedImage, String> {
 }
 
 /// jpeg-decoder returns Adobe-style inverted CMYK, so channel × K approximates RGB.
-fn cmyk_to_rgb(c: &[u8]) -> [u8; 3] {
+fn cmyk_to_rgb(c: &[u8; 4]) -> [u8; 3] {
     let k = c[3] as u32;
     [
         (c[0] as u32 * k / 255) as u8,

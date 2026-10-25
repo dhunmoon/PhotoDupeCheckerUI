@@ -2,6 +2,7 @@
 name = "dupe_finder"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Find and remove duplicate files and visually similar photos"
 authors = ["dhunmoon"]
 license = "MIT"

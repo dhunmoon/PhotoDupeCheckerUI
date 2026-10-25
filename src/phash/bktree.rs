@@ -102,8 +102,10 @@ mod tests {
     fn matches_brute_force_on_random_hashes() {
         let raw = bytes(16 * 400, 7);
         let hashes: Vec<u128> = raw
-            .chunks_exact(16)
-            .map(|c| u128::from_le_bytes(c.try_into().unwrap()))
+            .as_chunks::<16>()
+            .0
+            .iter()
+            .map(|c| u128::from_le_bytes(*c))
             .collect();
         let mut t = BkTree::default();
         for (i, h) in hashes.iter().enumerate() {

@@ -125,6 +125,13 @@ light/dark mode, a 4/8/12/16/24 px spacing scale, three control heights (26/32/4
 and shared widgets (buttons, segmented control, badges, chips, menu items). Build new UI
 from these helpers so everything stays consistent.
 
+The dark palette is a "Blue & Slate" token set: app background `#0B0F17`, sidebar/bars
+`#0F172A`, surfaces `#1E293B` (hover `#243247`), 1 px borders `#2D3B4F` (focus `#3B82F6`),
+accent `#2563EB` (hover `#1D4ED8`, selected fill at 15 % alpha), text
+`#F8FAFC`/`#94A3B8`/`#64748B`, and status colours success `#10B981`, danger `#EF4444`,
+warning `#F59E0B`, info `#38BDF8`. Small accent-coloured text uses `#60A5FA` for contrast.
+The light palette maps the same roles onto slate-light tones.
+
 | Asset | Location | Notes |
 |-------|----------|-------|
 | Text font | `assets/fonts/Inter-*.ttf` | Inter 4.1, Regular / Medium / SemiBold (OFL). See `assets/fonts/README.md`. |

@@ -32,68 +32,128 @@ pub const RADIUS: u8 = 6;
 pub const RADIUS_LG: u8 = 10;
 
 /// Semantic colours for one theme.
+///
+/// The dark theme is the "Blue & Slate" design system; the CSS-style token each field
+/// implements is noted on the field. The light theme mirrors it with slate light tones.
 #[derive(Clone, Copy)]
 pub struct Palette {
-    /// Main content background.
+    /// Behind the main results view (`--bg-app`).
     pub bg: Color32,
-    /// Side panels, top/bottom bars, dialogs.
+    /// Sidebar, top/bottom bars, dialogs, cards and the list container (`--bg-sidebar`).
     pub surface: Color32,
-    /// Inputs, buttons, cards on a surface.
+    /// Inputs, secondary buttons, group headers, unselected option cards (`--bg-surface`).
     pub surface2: Color32,
-    /// Hover state of `surface2`.
+    /// Hover state of `surface2` and of file rows (`--bg-surface-hover`).
     pub surface3: Color32,
+    /// Every 1 px border and divider (`--border-subtle`).
     pub border: Color32,
+    /// Focused inputs and selected items (`--border-focus`).
+    pub border_focus: Color32,
+    /// Primary text (`--text-primary`).
     pub text: Color32,
+    /// Secondary text: captions, labels, icons (`--text-secondary`).
     pub muted: Color32,
+    /// Least important text: placeholders, disabled hints (`--text-muted`).
+    pub faint: Color32,
+    /// Primary button fill, progress, radio dots (`--accent-primary`).
     pub accent: Color32,
+    /// Primary button hover (`--accent-hover`).
+    pub accent_hover: Color32,
     /// Text drawn on top of `accent`.
     pub on_accent: Color32,
-    /// Very light accent tint for selected rows.
+    /// Background of selected filters / option cards (`--accent-subtle`).
     pub accent_soft: Color32,
+    /// Accent used for *text and icons* on dark surfaces. `--accent-primary` is too dark
+    /// to read as small text on `--bg-sidebar`, so this is a lighter blue of the same hue.
+    pub accent_text: Color32,
+    /// "Keep" status (`--status-success`).
     pub keep: Color32,
+    /// "Keep" pill fill (`--status-success-bg`).
+    pub keep_bg: Color32,
+    /// "Remove" status and marked files (`--status-danger`).
     pub remove: Color32,
+    /// "Remove" pill fill, subtle danger buttons (`--status-danger-bg`).
+    pub remove_bg: Color32,
+    /// Solid destructive button fill.
     pub danger: Color32,
+    /// Solid destructive button hover.
+    pub danger_hover: Color32,
+    /// Warnings and "best in group" stars (`--status-warning`).
     pub warn: Color32,
+    /// Informational accents (`--status-info`).
+    pub info: Color32,
+    /// Source folder role.
     pub source: Color32,
+    /// Target folder role.
     pub target: Color32,
 }
 
+const fn hex(rgb: u32) -> Color32 {
+    Color32::from_rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8)
+}
+
+/// `rgba(r, g, b, alpha)` like in CSS.
+const fn rgba(rgb: u32, alpha: f32) -> Color32 {
+    Color32::from_rgba_unmultiplied_const(
+        (rgb >> 16) as u8,
+        (rgb >> 8) as u8,
+        rgb as u8,
+        (alpha * 255.0) as u8,
+    )
+}
+
 pub const DARK: Palette = Palette {
-    bg: Color32::from_rgb(17, 19, 24),
-    surface: Color32::from_rgb(24, 27, 33),
-    surface2: Color32::from_rgb(32, 36, 44),
-    surface3: Color32::from_rgb(42, 47, 57),
-    border: Color32::from_rgb(44, 49, 59),
-    text: Color32::from_rgb(231, 233, 238),
-    muted: Color32::from_rgb(140, 147, 161),
-    accent: Color32::from_rgb(91, 140, 255),
+    bg: hex(0x0B0F17),
+    surface: hex(0x0F172A),
+    surface2: hex(0x1E293B),
+    surface3: hex(0x243247),
+    border: hex(0x2D3B4F),
+    border_focus: hex(0x3B82F6),
+    text: hex(0xF8FAFC),
+    muted: hex(0x94A3B8),
+    faint: hex(0x64748B),
+    accent: hex(0x2563EB),
+    accent_hover: hex(0x1D4ED8),
     on_accent: Color32::WHITE,
-    accent_soft: Color32::from_rgb(30, 41, 66),
-    keep: Color32::from_rgb(63, 185, 122),
-    remove: Color32::from_rgb(240, 106, 106),
-    danger: Color32::from_rgb(208, 64, 64),
-    warn: Color32::from_rgb(233, 180, 76),
-    source: Color32::from_rgb(79, 163, 224),
-    target: Color32::from_rgb(185, 138, 230),
+    accent_soft: rgba(0x2563EB, 0.15),
+    accent_text: hex(0x60A5FA),
+    keep: hex(0x10B981),
+    keep_bg: rgba(0x10B981, 0.12),
+    remove: hex(0xEF4444),
+    remove_bg: rgba(0xEF4444, 0.15),
+    danger: hex(0xEF4444),
+    danger_hover: hex(0xDC2626),
+    warn: hex(0xF59E0B),
+    info: hex(0x38BDF8),
+    source: hex(0x38BDF8),
+    target: hex(0xA78BFA),
 };
 
 pub const LIGHT: Palette = Palette {
-    bg: Color32::from_rgb(246, 247, 249),
+    bg: hex(0xF1F5F9),
     surface: Color32::WHITE,
-    surface2: Color32::from_rgb(242, 244, 247),
-    surface3: Color32::from_rgb(231, 234, 240),
-    border: Color32::from_rgb(225, 228, 234),
-    text: Color32::from_rgb(27, 31, 39),
-    muted: Color32::from_rgb(106, 114, 128),
-    accent: Color32::from_rgb(47, 103, 232),
+    surface2: hex(0xF8FAFC),
+    surface3: hex(0xEEF2F7),
+    border: hex(0xE2E8F0),
+    border_focus: hex(0x3B82F6),
+    text: hex(0x0F172A),
+    muted: hex(0x475569),
+    faint: hex(0x94A3B8),
+    accent: hex(0x2563EB),
+    accent_hover: hex(0x1D4ED8),
     on_accent: Color32::WHITE,
-    accent_soft: Color32::from_rgb(235, 241, 254),
-    keep: Color32::from_rgb(31, 157, 92),
-    remove: Color32::from_rgb(214, 69, 69),
-    danger: Color32::from_rgb(200, 52, 52),
-    warn: Color32::from_rgb(183, 121, 31),
-    source: Color32::from_rgb(43, 123, 192),
-    target: Color32::from_rgb(139, 92, 201),
+    accent_soft: rgba(0x2563EB, 0.10),
+    accent_text: hex(0x1D4ED8),
+    keep: hex(0x059669),
+    keep_bg: rgba(0x10B981, 0.12),
+    remove: hex(0xDC2626),
+    remove_bg: rgba(0xEF4444, 0.10),
+    danger: hex(0xDC2626),
+    danger_hover: hex(0xB91C1C),
+    warn: hex(0xD97706),
+    info: hex(0x0284C7),
+    source: hex(0x0284C7),
+    target: hex(0x7C3AED),
 };
 
 impl Palette {
@@ -146,12 +206,12 @@ fn apply_palette(v: &mut egui::Visuals, p: &Palette) {
     v.menu_corner_radius = CornerRadius::same(8);
     v.extreme_bg_color = p.bg;
     v.text_edit_bg_color = Some(p.surface2);
+    v.weak_text_color = Some(p.faint);
     v.faint_bg_color = p.surface2;
     v.code_bg_color = p.surface2;
-    v.hyperlink_color = p.accent;
+    v.hyperlink_color = p.accent_text;
     v.warn_fg_color = p.warn;
     v.error_fg_color = p.remove;
-    v.weak_text_color = Some(p.muted);
     v.override_text_color = None;
     v.slider_trailing_fill = true;
     v.striped = false;
@@ -170,19 +230,8 @@ fn apply_palette(v: &mut egui::Visuals, p: &Palette) {
         spread: 0,
         color: Color32::from_black_alpha(shadow_alpha),
     };
-    v.selection.bg_fill = if v.dark_mode {
-        p.accent.gamma_multiply(0.45)
-    } else {
-        p.accent_soft
-    };
-    v.selection.stroke = Stroke::new(
-        1.0,
-        if v.dark_mode {
-            Color32::WHITE
-        } else {
-            p.accent
-        },
-    );
+    v.selection.bg_fill = p.accent.gamma_multiply(0.35);
+    v.selection.stroke = Stroke::new(1.0, p.border_focus);
 
     let w = &mut v.widgets;
     w.noninteractive.bg_fill = p.surface;
@@ -207,14 +256,14 @@ fn apply_palette(v: &mut egui::Visuals, p: &Palette) {
 
     w.active.bg_fill = p.surface3;
     w.active.weak_bg_fill = p.surface3;
-    w.active.bg_stroke = Stroke::new(1.0, p.accent);
+    w.active.bg_stroke = Stroke::new(1.0, p.border_focus);
     w.active.fg_stroke = Stroke::new(1.5, p.text);
     w.active.corner_radius = r;
     w.active.expansion = 0.0;
 
     w.open.weak_bg_fill = p.surface3;
     w.open.bg_fill = p.surface3;
-    w.open.bg_stroke = Stroke::new(1.0, p.border);
+    w.open.bg_stroke = Stroke::new(1.0, p.border_focus);
     w.open.fg_stroke = Stroke::new(1.0, p.text);
     w.open.corner_radius = r;
 }
@@ -229,8 +278,10 @@ pub enum Kind {
     Secondary,
     /// No background until hovered (toolbars, icon buttons).
     Ghost,
-    /// Irreversible / destructive.
+    /// Irreversible / destructive, solid red.
     Danger,
+    /// Destructive but currently unavailable / low emphasis: red text on a faint red tint.
+    DangerSubtle,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -251,27 +302,116 @@ impl Size {
 }
 
 /// A styled button. `label` may start with an icon, e.g. `format!("{} Add", icons::PLUS)`.
-pub fn button(ui: &Ui, kind: Kind, size: Size, label: impl Into<String>) -> Button<'static> {
+///
+/// Add it like any widget (`ui.add`, `ui.put`, `ui.add_enabled`). Every kind has a 1 px
+/// border so buttons of different kinds line up exactly, and a distinct hover colour.
+pub fn button(ui: &Ui, kind: Kind, size: Size, label: impl Into<String>) -> ThemedButton {
     let p = Palette::of(ui);
     let text = match size {
         Size::Sm => medium(label).size(12.5),
         Size::Md => medium(label),
         Size::Lg => semibold(label).size(14.5),
     };
-    let b = match kind {
-        Kind::Primary => Button::new(text.color(p.on_accent))
-            .fill(p.accent)
-            .stroke(Stroke::NONE),
-        Kind::Danger => Button::new(text.color(Color32::WHITE))
-            .fill(p.danger)
-            .stroke(Stroke::NONE),
-        Kind::Secondary => Button::new(text)
-            .fill(p.surface2)
-            .stroke(Stroke::new(1.0, p.border)),
-        Kind::Ghost => Button::new(text).frame_when_inactive(false),
+    let text = match kind {
+        Kind::Primary => text.color(p.on_accent),
+        Kind::Danger => text.color(Color32::WHITE),
+        Kind::DangerSubtle => text.color(p.remove),
+        Kind::Secondary | Kind::Ghost => text.color(p.text),
     };
-    b.min_size(Vec2::new(0.0, size.height()))
-        .corner_radius(RADIUS)
+    let mut b = Button::new(text)
+        .min_size(Vec2::new(0.0, size.height()))
+        .corner_radius(RADIUS);
+    if kind == Kind::Ghost {
+        b = b.frame_when_inactive(false);
+    }
+    ThemedButton { button: b, kind }
+}
+
+/// A [`Button`] plus the colours of its [`Kind`]; created by [`button`].
+#[must_use = "add it with `ui.add`"]
+pub struct ThemedButton {
+    button: Button<'static>,
+    kind: Kind,
+}
+
+impl ThemedButton {
+    pub fn min_size(mut self, size: Vec2) -> Self {
+        self.button = self.button.min_size(size);
+        self
+    }
+
+    /// Keeps the label on one line, eliding it with "…" when it doesn't fit.
+    pub fn truncate(mut self) -> Self {
+        self.button = self.button.truncate();
+        self
+    }
+
+    /// The plain [`Button`], for APIs such as `MenuButton::from_button`.
+    ///
+    /// Secondary and Ghost buttons look identical this way because they use the global
+    /// widget colours. Primary / Danger buttons get a fixed fill without a hover state.
+    pub fn into_button(self, ui: &Ui) -> Button<'static> {
+        match kind_colors(self.kind, &Palette::of(ui)) {
+            Some(c) => self.button.fill(c.fill).stroke(Stroke::new(1.0, c.stroke)),
+            None => self.button,
+        }
+    }
+}
+
+/// Fill / stroke for the coloured button kinds. `None` = use the global widget visuals.
+struct KindColors {
+    fill: Color32,
+    hover: Color32,
+    stroke: Color32,
+    hover_stroke: Color32,
+}
+
+fn kind_colors(kind: Kind, p: &Palette) -> Option<KindColors> {
+    match kind {
+        Kind::Primary => Some(KindColors {
+            fill: p.accent,
+            hover: p.accent_hover,
+            stroke: p.accent,
+            hover_stroke: p.accent_hover,
+        }),
+        Kind::Danger => Some(KindColors {
+            fill: p.danger,
+            hover: p.danger_hover,
+            stroke: p.danger,
+            hover_stroke: p.danger_hover,
+        }),
+        Kind::DangerSubtle => Some(KindColors {
+            fill: p.remove_bg,
+            hover: p.remove.gamma_multiply(0.25),
+            stroke: p.remove.gamma_multiply(0.6),
+            hover_stroke: p.remove,
+        }),
+        Kind::Secondary | Kind::Ghost => None,
+    }
+}
+
+impl egui::Widget for ThemedButton {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let Some(c) = kind_colors(self.kind, &Palette::of(ui)) else {
+            return ui.add(self.button);
+        };
+        // Temporarily recolour the widget visuals so the button keeps egui's own
+        // hover / press handling, then restore the style for the following widgets.
+        let saved = ui.style().clone();
+        let w = &mut ui.visuals_mut().widgets;
+        for (state, fill, stroke) in [
+            (&mut w.inactive, c.fill, c.stroke),
+            (&mut w.hovered, c.hover, c.hover_stroke),
+            (&mut w.active, c.hover, c.hover_stroke),
+        ] {
+            state.weak_bg_fill = fill;
+            state.bg_fill = fill;
+            state.bg_stroke = Stroke::new(1.0, stroke);
+        }
+        let resp = ui.add(self.button);
+        ui.set_style(saved);
+        resp
+    }
 }
 
 /// Square icon-only ghost button with a tooltip.
@@ -322,14 +462,14 @@ fn step_circle(ui: &mut Ui, n: usize, p: &Palette) {
         rect.center(),
         9.5,
         p.accent_soft,
-        Stroke::new(1.0, p.accent.gamma_multiply(0.5)),
+        Stroke::new(1.0, p.border_focus.gamma_multiply(0.6)),
     );
     ui.painter().text(
         rect.center(),
         Align2::CENTER_CENTER,
         n.to_string(),
         FontId::new(11.0, FontFamily::Name("inter-semibold".into())),
-        p.accent,
+        p.accent_text,
     );
 }
 
@@ -366,9 +506,14 @@ pub fn badge(ui: &mut Ui, text: impl Into<String>, color: Color32) -> Response {
     let galley = ui.painter().layout_no_wrap(text.into(), font, color);
     let (rect, resp) =
         ui.allocate_exact_size(Vec2::new(galley.size().x + 16.0, 20.0), Sense::click());
-    let tint = if ui.visuals().dark_mode { 0.16 } else { 0.11 };
-    ui.painter()
-        .rect_filled(rect, 10.0, color.gamma_multiply(tint));
+    let tint = if ui.visuals().dark_mode { 0.15 } else { 0.11 };
+    ui.painter().rect(
+        rect,
+        10.0,
+        color.gamma_multiply(tint),
+        Stroke::new(1.0, color.gamma_multiply(0.35)),
+        egui::StrokeKind::Inside,
+    );
     ui.painter()
         .galley(rect.center() - galley.size() / 2.0, galley, color);
     resp
@@ -409,12 +554,14 @@ pub fn paint_status_pill(ui: &Ui, rect: Rect, marked: bool, solid: bool, hovered
     let (fill, stroke, fg, disc, mark) = if solid {
         (color, Stroke::NONE, Color32::WHITE, Color32::WHITE, color)
     } else {
-        let tint = if ui.visuals().dark_mode { 0.16 } else { 0.10 };
-        let tint = if hovered { tint * 1.8 } else { tint };
-        let fill = color.gamma_multiply(tint);
+        let (bg, hover_bg) = if marked {
+            (p.remove_bg, p.remove.gamma_multiply(0.25))
+        } else {
+            (p.keep_bg, p.keep.gamma_multiply(0.22))
+        };
         (
-            fill,
-            Stroke::new(1.0, color.gamma_multiply(0.45)),
+            if hovered { hover_bg } else { bg },
+            Stroke::new(1.0, color.gamma_multiply(if hovered { 0.8 } else { 0.45 })),
             color,
             color,
             Color32::WHITE,
@@ -480,7 +627,7 @@ pub fn search_field(ui: &mut Ui, text: &mut String, hint: &str, width: f32) -> R
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height::MD), Sense::hover());
     let id = ui.make_persistent_id(("search_field", hint));
     let focused = ui.memory(|m| m.has_focus(id));
-    let border = if focused { p.accent } else { p.border };
+    let border = if focused { p.border_focus } else { p.border };
     ui.painter().rect(
         rect,
         RADIUS,
@@ -534,14 +681,9 @@ pub fn segmented<T: PartialEq + Copy>(
     let p = Palette::of(ui);
     let mut changed = false;
     let track = if ui.visuals().dark_mode {
-        p.bg
+        p.surface
     } else {
         p.surface2
-    };
-    let selected_fill = if ui.visuals().dark_mode {
-        p.surface3
-    } else {
-        p.surface
     };
     Frame::new()
         .fill(track)
@@ -572,7 +714,8 @@ pub fn segmented<T: PartialEq + Copy>(
                             .corner_radius(6)
                             .min_size(Vec2::new(seg_w, SEGMENT_H));
                         b = if selected {
-                            b.fill(selected_fill).stroke(Stroke::new(1.0, p.border))
+                            b.fill(p.accent_soft)
+                                .stroke(Stroke::new(1.0, p.border_focus))
                         } else {
                             b.frame_when_inactive(false)
                         };
@@ -628,14 +771,13 @@ pub fn chip(ui: &mut Ui, selected: bool, label: impl Into<String>) -> Response {
 /// [`chip`] with an explicit height, e.g. `height::MD` inside a toolbar.
 pub fn chip_sized(ui: &mut Ui, selected: bool, label: impl Into<String>, h: f32) -> Response {
     let p = Palette::of(ui);
+    // Unselected chips use the global widget colours so they get the normal hover state.
     let b = if selected {
-        Button::new(medium(label).size(12.5).color(p.accent))
+        Button::new(medium(label).size(12.5).color(p.accent_text))
             .fill(p.accent_soft)
-            .stroke(Stroke::new(1.0, p.accent.gamma_multiply(0.55)))
+            .stroke(Stroke::new(1.0, p.border_focus))
     } else {
         Button::new(medium(label).size(12.5).color(p.muted))
-            .fill(p.surface2)
-            .stroke(Stroke::new(1.0, p.border))
     };
     let radius = (h / 2.0) as u8;
     ui.add(b.corner_radius(radius).min_size(Vec2::new(0.0, h)))

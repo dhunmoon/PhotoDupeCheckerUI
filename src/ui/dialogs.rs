@@ -1,6 +1,6 @@
 //! Modal confirmation before touching files, and the activity log window.
 
-use eframe::egui::{self, Align, Layout, Margin, RichText};
+use eframe::egui::{self, Align, Layout, Margin, RichText, Stroke};
 
 use super::DupeApp;
 use super::fonts::semibold;
@@ -28,9 +28,9 @@ pub(crate) fn confirm_action(app: &mut DupeApp, ctx: &egui::Context) {
         let (icon, color) = match kind {
             ActionKind::Trash => (icons::TRASH, p.remove),
             ActionKind::Delete => (icons::X_CIRCLE, p.danger),
-            ActionKind::MoveTo { .. } => (icons::FOLDER_OPEN, p.accent),
-            ActionKind::CopyTo { .. } => (icons::COPY, p.accent),
-            ActionKind::HardLink | ActionKind::SymLink => (icons::LINK, p.accent),
+            ActionKind::MoveTo { .. } => (icons::FOLDER_OPEN, p.accent_text),
+            ActionKind::CopyTo { .. } => (icons::COPY, p.accent_text),
+            ActionKind::HardLink | ActionKind::SymLink => (icons::LINK, p.accent_text),
         };
         ui.horizontal(|ui| {
             egui::Frame::new()
@@ -54,6 +54,7 @@ pub(crate) fn confirm_action(app: &mut DupeApp, ctx: &egui::Context) {
 
         egui::Frame::new()
             .fill(p.surface2)
+            .stroke(Stroke::new(1.0, p.border))
             .corner_radius(8)
             .inner_margin(Margin::same(14))
             .show(ui, |ui| {
@@ -191,6 +192,7 @@ pub(crate) fn log_window(app: &mut DupeApp, ctx: &egui::Context) {
             ui.add_space(space::XS);
             egui::Frame::new()
                 .fill(p.bg)
+                .stroke(Stroke::new(1.0, p.border))
                 .corner_radius(8)
                 .inner_margin(Margin::same(10))
                 .show(ui, |ui| {

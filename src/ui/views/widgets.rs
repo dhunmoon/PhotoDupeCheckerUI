@@ -62,8 +62,12 @@ pub(super) fn group_title(ui: &mut egui::Ui, g: &DupGroup, marked: usize) {
     );
     ui.label(semibold(format!("Group {}", g.id)).color(p.text));
     ui.label(RichText::new(format!("· {} copies · {}", g.files.len(), g.label)).color(p.muted));
-    theme::badge(ui, format!("{} freed", human_size(g.wasted())), p.accent)
-        .on_hover_text("Space freed by keeping only one copy");
+    theme::badge(
+        ui,
+        format!("{} freed", human_size(g.wasted())),
+        p.accent_text,
+    )
+    .on_hover_text("Space freed by keeping only one copy");
     if marked > 0 {
         theme::badge(ui, format!("{marked} marked"), p.remove);
     }

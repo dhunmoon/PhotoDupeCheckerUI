@@ -31,6 +31,7 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
         .corner_radius(theme::RADIUS_LG)
         .inner_margin(Margin::symmetric(4, 4))
         .show(ui, |ui| {
+            let table_rect = ui.max_rect();
             // Narrow windows drop the Dimensions / Modified columns instead of overflowing.
             let wide = ui.available_width() > 980.0;
             let mut table = TableBuilder::new(ui)
@@ -94,8 +95,7 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                             row.set_overline(true);
                             let cell = |row: &mut TableRow, add: &mut dyn FnMut(&mut egui::Ui)| {
                                 row.col(|ui| {
-                                    let bg = ui.max_rect().expand2(0.5 * ui.spacing().item_spacing);
-                                    ui.painter().rect_filled(bg, 0.0, p.surface2);
+                                    paint_row_bg(ui, table_rect, p.surface2);
                                     add(ui);
                                 });
                             };
@@ -144,8 +144,12 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                                 );
                             });
                             cell(&mut row, &mut |ui| {
-                                theme::badge(ui, format!("−{}", human_size(g.wasted())), p.accent)
-                                    .on_hover_text("Space freed by keeping only one copy");
+                                theme::badge(
+                                    ui,
+                                    format!("−{}", human_size(g.wasted())),
+                                    p.accent_text,
+                                )
+                                .on_hover_text("Space freed by keeping only one copy");
                             });
                             let extra =
                                 2 * usize::from(wide) + usize::from(svt) + usize::from(similar);
@@ -158,12 +162,14 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                             let f = &g.files[fi];
                             let marked = results.is_marked(&f.path);
                             row.col(|ui| {
+                                row_hover(ui, table_rect, p.surface3);
                                 ui.add_space(8.0);
                                 if theme::mark_toggle(ui, marked) {
                                     cmds.push(Cmd::Toggle(f.path.clone()));
                                 }
                             });
                             row.col(|ui| {
+                                row_hover(ui, table_rect, p.surface3);
                                 if is_decodable_image(&f.path) {
                                     match thumbs.get(&f.path, 96) {
                                         Thumb::Ready(t) => {
@@ -196,6 +202,7 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                                 }
                             });
                             row.col(|ui| {
+                                row_hover(ui, table_rect, p.surface3);
                                 let mut name = medium(f.name()).color(p.text);
                                 if marked {
                                     name = name.color(p.remove).strikethrough();
@@ -215,14 +222,17 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                                 );
                             });
                             row.col(|ui| {
+                                row_hover(ui, table_rect, p.surface3);
                                 ui.label(RichText::new(f.parent_display()).color(p.muted))
                                     .on_hover_text(f.path.display().to_string());
                             });
                             row.col(|ui| {
+                                row_hover(ui, table_rect, p.surface3);
                                 ui.label(RichText::new(human_size(f.size)).color(p.text));
                             });
                             if wide {
                                 row.col(|ui| {
+                                    row_hover(ui, table_rect, p.surface3);
                                     ui.label(
                                         RichText::new(
                                             f.dims
@@ -233,11 +243,13 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                                     );
                                 });
                                 row.col(|ui| {
+                                    row_hover(ui, table_rect, p.surface3);
                                     ui.label(RichText::new(format_time(f.modified)).color(p.muted));
                                 });
                             }
                             if svt {
                                 row.col(|ui| {
+                                    row_hover(ui, table_rect, p.surface3);
                                     let c = if f.role == FolderRole::Source {
                                         p.source
                                     } else {
@@ -248,6 +260,7 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                             }
                             if similar {
                                 row.col(|ui| {
+                                    row_hover(ui, table_rect, p.surface3);
                                     ui.label(
                                         RichText::new(
                                             f.distance.map(|d| d.to_string()).unwrap_or_default(),
@@ -260,4 +273,29 @@ pub(super) fn show(app: &mut DupeApp, ui: &mut egui::Ui, cmds: &mut Vec<Cmd>) {
                     });
                 });
         });
+}
+
+/// Highlights the whole file row under the pointer. Called at the start of every cell
+/// of the row, so the cells together paint one continuous band.
+fn row_hover(ui: &egui::Ui, table: egui::Rect, fill: egui::Color32) {
+    let bg = ui.max_rect().expand2(0.5 * ui.spacing().item_spacing);
+    let hovered = ui.ctx().pointer_hover_pos().is_some_and(|pos| {
+        table.contains(pos)
+            && bg.y_range().contains(pos.y)
+            && ui.ctx().layer_id_at(pos) == Some(ui.layer_id())
+    });
+    if hovered {
+        paint_row_bg(ui, table, fill);
+    }
+}
+
+/// Fills a cell's background including half the item spacing on each side, so the
+/// cells of a row join into one band. The cell's own clip rect is only as wide as its
+/// column, so paint with the table's horizontal extent and the scroll area's vertical clip.
+fn paint_row_bg(ui: &egui::Ui, table: egui::Rect, fill: egui::Color32) {
+    let bg = ui.max_rect().expand2(0.5 * ui.spacing().item_spacing);
+    let clip = egui::Rect::from_x_y_ranges(table.x_range(), ui.clip_rect().y_range());
+    let mut painter = ui.painter().clone();
+    painter.set_clip_rect(clip);
+    painter.rect_filled(bg, 0.0, fill);
 }

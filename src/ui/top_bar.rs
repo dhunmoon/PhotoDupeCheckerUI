@@ -30,7 +30,7 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
                     let metrics = [
                         (groups.to_string(), "Duplicate groups", None),
                         (files.to_string(), "Files involved", None),
-                        (human_size(wasted), "Can be freed", Some(p.accent)),
+                        (human_size(wasted), "Can be freed", Some(p.accent_text)),
                         (
                             marked.files.to_string(),
                             "Marked",
@@ -62,7 +62,7 @@ pub(crate) fn show(app: &mut DupeApp, ui: &mut egui::Ui) {
                     let resp = theme::icon_button(ui, icons::TERMINAL, "Activity log");
                     if !app.log.is_empty() {
                         let c = resp.rect.right_top() + egui::vec2(-7.0, 7.0);
-                        ui.painter().circle_filled(c, 3.5, p.accent);
+                        ui.painter().circle_filled(c, 3.5, p.info);
                     }
                     if resp.clicked() {
                         app.show_log = !app.show_log;

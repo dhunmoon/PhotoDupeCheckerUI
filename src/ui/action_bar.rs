@@ -40,7 +40,7 @@ fn selection_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         Size::Md,
         format!("{}  Smart select  {}", icons::MAGIC_WAND, icons::CARET_DOWN),
     );
-    MenuButton::from_button(smart)
+    MenuButton::from_button(smart.into_button(ui))
         .ui(ui, |ui| smart_select_menu(app, ui))
         .0
         .on_hover_text("Automatically decide which copy to keep in every group");
@@ -171,9 +171,14 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         kind,
     };
 
+    // Subtle red until there is something to trash, then solid red.
     let trash = theme::button(
         ui,
-        Kind::Danger,
+        if enabled {
+            Kind::Danger
+        } else {
+            Kind::DangerSubtle
+        },
         Size::Md,
         format!("{}  Move to Trash", icons::TRASH),
     );
@@ -192,7 +197,7 @@ fn action_controls(app: &mut DupeApp, ui: &mut egui::Ui) {
         Size::Md,
         format!("More actions  {}", icons::CARET_DOWN),
     );
-    MenuButton::from_button(more).ui(ui, |ui| {
+    MenuButton::from_button(more.into_button(ui)).ui(ui, |ui| {
         ui.set_min_width(290.0);
         ui.add_enabled_ui(enabled, |ui| {
             theme::menu_caption(ui, "Relocate");

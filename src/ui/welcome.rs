@@ -158,7 +158,7 @@ fn guide(app: &mut DupeApp, ui: &mut egui::Ui) {
                         Align2::CENTER_CENTER,
                         icon,
                         egui::FontId::proportional(18.0),
-                        p.accent,
+                        p.accent_text,
                     );
                     ui.add_space(space::XS);
                     ui.vertical(|ui| {

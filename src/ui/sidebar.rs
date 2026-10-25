@@ -120,6 +120,7 @@ fn folder_row(ui: &mut egui::Ui, f: &mut crate::model::FolderEntry, svt: bool) -
         .unwrap_or_default();
     egui::Frame::new()
         .fill(p.surface2)
+        .stroke(Stroke::new(1.0, p.border))
         .corner_radius(8)
         .inner_margin(Margin::symmetric(10, 6))
         .show(ui, |ui| {
@@ -174,20 +175,15 @@ fn folder_row(ui: &mut egui::Ui, f: &mut crate::model::FolderEntry, svt: bool) -
 fn drop_zone(ui: &mut egui::Ui) {
     let p = Palette::of(ui);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 96.0), Sense::hover());
-    ui.painter().rect_filled(rect, 10.0, p.surface2);
+    const RADIUS: f32 = 8.0;
+    ui.painter().rect_filled(rect, RADIUS, p.surface2);
     let stroke = Stroke::new(1.0, p.muted.gamma_multiply(0.6));
-    let r = rect.shrink(0.5);
-    let pts = [
-        r.left_top(),
-        r.right_top(),
-        r.right_bottom(),
-        r.left_bottom(),
-        r.left_top(),
-    ];
-    for w in pts.windows(2) {
-        ui.painter()
-            .extend(egui::Shape::dashed_line(&[w[0], w[1]], stroke, 5.0, 4.0));
-    }
+    ui.painter().extend(egui::Shape::dashed_line(
+        &rounded_outline(rect.shrink(0.5), RADIUS),
+        stroke,
+        5.0,
+        4.0,
+    ));
     let painter = ui.painter();
     painter.text(
         rect.center() - Vec2::new(0.0, 16.0),
@@ -269,9 +265,9 @@ fn method_option(ui: &mut egui::Ui, current: &mut Method, m: Method) {
     let id = ui.make_persistent_id(("method", m.cli_name()));
     let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
     let (fill, stroke) = match (selected, hovered) {
-        (true, _) => (p.accent_soft, Stroke::new(1.5, p.accent)),
-        (false, true) => (p.surface2, Stroke::new(1.0, p.border)),
-        (false, false) => (p.surface, Stroke::new(1.0, p.border)),
+        (true, _) => (p.accent_soft, Stroke::new(1.0, p.border_focus)),
+        (false, true) => (p.surface3, Stroke::new(1.0, p.border)),
+        (false, false) => (p.surface2, Stroke::new(1.0, p.border)),
     };
     let resp = egui::Frame::new()
         .fill(fill)
@@ -362,7 +358,7 @@ fn method_options(app: &mut DupeApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.label(medium("Similarity").color(p.text));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(semibold(cfg.similarity_threshold.to_string()).color(p.accent));
+                    ui.label(semibold(cfg.similarity_threshold.to_string()).color(p.accent_text));
                 });
             });
             ui.spacing_mut().slider_width = ui.available_width() - 4.0;
@@ -613,4 +609,32 @@ fn scan_area(app: &mut DupeApp, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         app.start_scan(&ctx);
     }
+}
+
+/// Closed polyline tracing a rounded rectangle, for drawing dashed rounded borders
+/// (egui only offers dashed *lines*, not dashed rounded rects).
+fn rounded_outline(r: egui::Rect, radius: f32) -> Vec<egui::Pos2> {
+    use std::f32::consts::FRAC_PI_2;
+    const STEPS: usize = 8;
+    let corners = [
+        (egui::pos2(r.right() - radius, r.top() + radius), -FRAC_PI_2),
+        (egui::pos2(r.right() - radius, r.bottom() - radius), 0.0),
+        (
+            egui::pos2(r.left() + radius, r.bottom() - radius),
+            FRAC_PI_2,
+        ),
+        (
+            egui::pos2(r.left() + radius, r.top() + radius),
+            2.0 * FRAC_PI_2,
+        ),
+    ];
+    let mut pts = Vec::with_capacity(4 * (STEPS + 1) + 1);
+    for (c, start) in corners {
+        for i in 0..=STEPS {
+            let a = start + FRAC_PI_2 * i as f32 / STEPS as f32;
+            pts.push(c + radius * Vec2::angled(a));
+        }
+    }
+    pts.push(pts[0]);
+    pts
 }
